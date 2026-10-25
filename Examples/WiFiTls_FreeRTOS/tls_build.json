@@ -1,0 +1,63 @@
+{
+  "about": [
+    "TLS, which this example adds to the Wi-Fi stack: Mbed TLS, NXP's HTTP server with its",
+    "Mbed TLS layer, and the Neuro N6's TLS glue (Middlewares/NeuroN6/Tls), which carries NXP's",
+    "Mbed TLS transport over lwIP's sockets. harness/examples/addstack.py reads it, with",
+    "wifi_build.json; paths are relative to the project's Appli folder, where the middleware",
+    "trees keep their repository paths. MBEDTLS_CONFIG_FILE selects the TLS configuration;",
+    "the HTTPSRV_CFG_ switches configure NXP's server (httpsrv_config.h): TLS on, a 12 KB",
+    "listener stack, because the TLS handshake runs in the task that accepts the connection,",
+    "and a browser's connection kept open between requests for up to a second: the server's",
+    "1 s receive timeout ends an idle connection anyway, since lwIP reports it as ETIMEDOUT",
+    "and the server waits on only EWOULDBLOCK. Two connections may wait for the listener,",
+    "not lwIP's least of one: with one, a browser's second connection is dropped until it",
+    "retries, and a connection abandoned half-open shuts everyone out for 20 s.",
+    "configTOTAL_HEAP_SIZE gives the kernel 192 KB for task stacks, where the Wi-Fi examples",
+    "have 96 KB: each HTTPS session is a task."
+  ],
+
+  "middlewares": [
+    "Middlewares/mbedtls/",
+    "Middlewares/NeuroN6/Tls/"
+  ],
+
+  "compile": [
+    "Middlewares/mbedtls/library/*.c",
+    "Middlewares/lwip/src/apps/httpsrv/*.c",
+    "Middlewares/NeuroN6/Tls/*.c"
+  ],
+
+  "cflags": {
+    "about": [
+      "The flags this code is built with, as the Wi-Fi stack's: NXP's transport and server",
+      "sit on the same lwIP."
+    ],
+    "std": "-std=gnu17",
+    "optimisation": "-O2 -fno-strict-aliasing",
+    "extra": "",
+    "warnings": ""
+  },
+
+  "defines": [
+    "MBEDTLS_CONFIG_FILE=\"mbedtls_config_tls.h\"",
+    "HTTPSRV_CFG_MBEDTLS_ENABLE=1",
+    "HTTPSRV_CFG_SERVER_STACK_SIZE=3072",
+    "HTTPSRV_CFG_KEEPALIVE_ENABLED=1",
+    "HTTPSRV_CFG_KEEPALIVE_TIMEOUT=1000",
+    "HTTPSRV_CFG_LISTEN_BACKLOG=2",
+    "HTTPSRV_CFG_TLS_HANDSHAKE_TIMEOUT=10000",
+    "configTOTAL_HEAP_SIZE=196608"
+  ],
+
+  "include_dirs": [
+    "Middlewares/NeuroN6/Tls",
+    "Middlewares/NeuroN6/Tls/include",
+    "Middlewares/mbedtls/include",
+    "Middlewares/mbedtls/tests/include",
+    "Middlewares/lwip/src/apps/httpsrv",
+    "Middlewares/NXP/wifi_nxp/wmcrypto"
+  ],
+
+  "hal_modules": ["rng"],
+  "hal_files": ["hal_rng_ex"]
+}

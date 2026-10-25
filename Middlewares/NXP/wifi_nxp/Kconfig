@@ -1,0 +1,169 @@
+menu "NXP WIFI"
+
+config MCUX_COMPONENT_middleware.wifi.wifi_bt_config.template
+    bool "Component middleware.wifi.wifi_bt_config.template"
+    if MCUX_COMPONENT_middleware.wifi.wifi_bt_config.template
+    endif
+config MCUX_COMPONENT_middleware.wifi.template
+    bool "Component middleware.wifi.template"
+    if MCUX_COMPONENT_middleware.wifi.template
+      choice MCUX_DEPENDENCY_COMPONENT_middleware.wifi.template.selection
+        prompt "Component middleware.wifi.template anyOf 1"
+        default MCUX_DEPENDENCY_COMPONENT_middleware.wifi.template_DEPEND_ANYOF_OPTION_1
+        config MCUX_DEPENDENCY_COMPONENT_middleware.wifi.template_DEPEND_ANYOF_OPTION_1
+            bool "Component MCUX_DEPENDENCY_COMPONENT_middleware.wifi.template_DEPEND_ANYOF_OPTION_1"
+            select MCUX_COMPONENT_component.wifi_bt_module.tx_pwr_limits
+
+        config MCUX_DEPENDENCY_COMPONENT_middleware.wifi.template_DEPEND_ANYOF_OPTION_2
+            bool "Component MCUX_DEPENDENCY_COMPONENT_middleware.wifi.template_DEPEND_ANYOF_OPTION_2"
+            select MCUX_COMPONENT_component.wifi_bt_module.tx_pwr_limits
+            select MCUX_COMPONENT_component.wifi_bt_module.config
+            select MCUX_COMPONENT_middleware.wifi.wifi_bt_config.template
+
+      endchoice
+    endif
+
+config MCUX_COMPONENT_middleware.wifi.osa_free_rtos
+    bool "Component middleware.wifi.osa_free_rtos"
+
+config MCUX_COMPONENT_middleware.wifi.osa
+    bool "Component middleware.wifi.osa"
+    select MCUX_COMPONENT_component.osa
+
+
+config MCUX_COMPONENT_middleware.wifi.common_files
+    bool "Component middleware.wifi.common_files"
+    select MCUX_COMPONENT_middleware.wifi.osa
+
+config MCUX_COMPONENT_middleware.wifi.fwdnld
+    bool "Component middleware.wifi.fwdnld"
+    select MCUX_COMPONENT_middleware.wifi.template
+    select MCUX_COMPONENT_middleware.wifi.mlan_sdio
+    select MCUX_COMPONENT_middleware.wifi.common_files
+    select MCUX_COMPONENT_middleware.wifi.fwdnld_intf_abs
+
+config MCUX_COMPONENT_middleware.wifi.firmware_download
+    bool "Component middleware.wifi.firmware_download"
+    default n
+
+config MCUX_COMPONENT_middleware.wifi.net
+    bool "Component middleware.wifi.net"
+    select MCUX_COMPONENT_component.osa
+    if MCUX_COMPONENT_middleware.wifi.net
+        config MCUX_COMPONENT_middleware.wifi.net_free_rtos
+            bool "Component middleware.wifi.net_free_rtos"
+            select MCUX_COMPONENT_middleware.lwip
+            select MCUX_COMPONENT_middleware.freertos-kernel
+
+        config MCUX_COMPONENT_middleware.wifi.net_free_rtos.iperf
+            bool "Component middleware.wifi.net_free_rtos.iperf"
+            default y if MCUX_COMPONENT_middleware.wifi.net_free_rtos
+            imply MCUX_COMPONENT_middleware.lwip.apps.lwiperf
+    endif
+
+config MCUX_COMPONENT_middleware.wifi.wifidriver
+    bool "Component middleware.wifi.wifidriver"
+    depends on MCUX_COMPONENT_utility.debug_console || MCUX_COMPONENT_utility.debug_console_lite || MCUX_COMPONENT_utility.debug_console_rtt
+    select MCUX_COMPONENT_middleware.wifi.template
+    select MCUX_COMPONENT_middleware.wifi.osa
+    select MCUX_COMPONENT_middleware.wifi.net
+
+    if MCUX_COMPONENT_middleware.wifi.wifidriver
+      choice MCUX_COMPONENT_middleware.wifi.wifidriver.selection
+        prompt "Component middleware.wifi.wifidriver anyOf 1"
+        default MCUX_DEPENDENCY_COMPONENT_middleware.wifi.wifidriver_DEPEND_ANYOF_OPTION_1
+        config MCUX_DEPENDENCY_COMPONENT_middleware.wifi.wifidriver_DEPEND_ANYOF_OPTION_1
+            bool "Component MCUX_DEPENDENCY_COMPONENT_middleware.wifi.wifidriver_DEPEND_ANYOF_OPTION_1"
+            select MCUX_COMPONENT_middleware.wifi.sdio
+            imply MCUX_COMPONENT_middleware.wifi.fwdnld
+            select MCUX_COMPONENT_middleware.wifi.fwdnld_intf_abs
+
+        config MCUX_DEPENDENCY_COMPONENT_middleware.wifi.wifidriver_DEPEND_ANYOF_OPTION_2
+            bool "Component MCUX_DEPENDENCY_COMPONENT_middleware.wifi.wifidriver_DEPEND_ANYOF_OPTION_2"
+            select MCUX_COMPONENT_middleware.wifi.imu
+            select MCUX_COMPONENT_middleware.wifi.common_files
+
+      endchoice
+
+      config MCUX_COMPONENT_middleware.wifi.wifidriver.softap
+        bool "NXP Wi-Fi Soft AP Support"
+        default y
+    endif
+
+config MCUX_COMPONENT_middleware.wifi
+    bool "Component middleware.wifi"
+    depends on MCUX_COMPONENT_utility.debug_console || MCUX_COMPONENT_utility.debug_console_lite || MCUX_COMPONENT_utility.debug_console_rtt
+    select MCUX_COMPONENT_middleware.wifi.template
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+    select MCUX_COMPONENT_component.wifi_bt_module.config
+
+config MCUX_COMPONENT_middleware.wifi.sdio
+    bool "Component middleware.wifi.sdio"
+    select MCUX_COMPONENT_middleware.wifi.mlan_sdio
+
+config MCUX_COMPONENT_middleware.wifi.mlan_sdio
+    bool "Component middleware.wifi.mlan_sdio"
+    select MCUX_COMPONENT_middleware.wifi.template
+    select MCUX_COMPONENT_middleware.sdmmc.sdio
+    select MCUX_COMPONENT_middleware.sdmmc.host.usdhc
+    select MCUX_COMPONENT_middleware.wifi.common_files
+
+    if MCUX_COMPONENT_middleware.wifi.mlan_sdio
+      choice MCUX_DEPENDENCY_COMPONENT_middleware.wifi.mlan_sdio.selection
+        prompt "Component middleware.wifi.mlan_sdio anyOf 1"
+        default MCUX_DEPENDENCY_COMPONENT_middleware.wifi.mlan_sdio_DEPEND_ANYOF_OPTION_1
+        config MCUX_DEPENDENCY_COMPONENT_middleware.wifi.mlan_sdio_DEPEND_ANYOF_OPTION_1
+            bool "Component MCUX_DEPENDENCY_COMPONENT_middleware.wifi.mlan_sdio_DEPEND_ANYOF_OPTION_1"
+
+        config MCUX_DEPENDENCY_COMPONENT_middleware.wifi.mlan_sdio_DEPEND_ANYOF_OPTION_2
+            bool "Component MCUX_DEPENDENCY_COMPONENT_middleware.wifi.mlan_sdio_DEPEND_ANYOF_OPTION_2"
+
+      endchoice
+    endif
+
+config MCUX_COMPONENT_middleware.wifi.fwdnld_intf_abs
+    bool "Component middleware.wifi.fwdnld_intf_abs"
+    if MCUX_COMPONENT_middleware.wifi.fwdnld_intf_abs
+    endif
+config MCUX_COMPONENT_middleware.wifi.imu
+    bool "Component middleware.wifi.imu"
+    select MCUX_COMPONENT_middleware.wifi.common_files
+    select MCUX_COMPONENT_component.wireless_imu_adapter
+    select MCUX_COMPONENT_component.osa
+    select MCUX_COMPONENT_driver.imu
+
+config MCUX_COMPONENT_middleware.wifi.cli
+    bool "Component middleware.wifi.cli"
+    select MCUX_COMPONENT_middleware.wifi
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+    depends on MCUX_COMPONENT_utility.debug_console || MCUX_COMPONENT_utility.debug_console_lite || MCUX_COMPONENT_utility.debug_console_rtt
+
+config MCUX_COMPONENT_middleware.wifi.wmcrypto
+    bool "Component middleware.wifi.wmcrypto"
+    select MCUX_COMPONENT_middleware.wifi
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+
+config MCUX_COMPONENT_middleware.wifi.wmtime
+    bool "Component middleware.wifi.wmtime"
+    select MCUX_COMPONENT_middleware.wifi
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+
+config MCUX_COMPONENT_middleware.wifi.ncp_supp_wmcrypto
+    bool "Component middleware.wifi.ncp_supp_wmcrypto"
+    select MCUX_COMPONENT_middleware.wifi
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+
+config MCUX_COMPONENT_middleware.wifi.libcsi.incl
+    bool "Component middleware.wifi.libcsi.incl"
+
+config MCUX_COMPONENT_middleware.wifi.slim_debug
+    bool "Component middleware.wifi.slim_debug"
+    select MCUX_COMPONENT_middleware.wifi
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+
+config MCUX_COMPONENT_middleware.wifi.slim
+    bool "Component middleware.wifi.slim"
+    select MCUX_COMPONENT_middleware.wifi
+    select MCUX_COMPONENT_middleware.wifi.wifidriver
+
+endmenu

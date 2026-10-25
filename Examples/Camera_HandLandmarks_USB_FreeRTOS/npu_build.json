@@ -1,0 +1,83 @@
+{
+  "about": [
+    "What this example adds to the FreeRTOS vendor streaming project, and how it is built.",
+    "harness/examples/addstack.py reads it; paths are relative to the project's Appli folder,",
+    "where the middleware trees keep their repository paths and the example's own files",
+    "their place in the example."
+  ],
+  "middlewares": [
+    "Middlewares/ST/AI_Runtime/",
+    "Middlewares/ARM/CMSIS-DSP/",
+    "Middlewares/ST/lib_vision_models_pp/",
+    "Middlewares/NeuroN6/PostProcess/",
+    "Middlewares/NeuroN6/Models/PalmDet/",
+    "Middlewares/NeuroN6/Models/HandLm/"
+  ],
+  "compile": [
+    "Middlewares/ST/AI_Runtime/Npu/ll_aton/*.c",
+    "Middlewares/ST/AI_Runtime/Npu/Devices/STM32N6XX/*.c",
+    "Middlewares/ST/lib_vision_models_pp/Src/pd_pp_model.c",
+    "Middlewares/ST/lib_vision_models_pp/Src/vision_models_pp.c",
+    "Middlewares/NeuroN6/PostProcess/PostProcessor_PD.c",
+    "Middlewares/NeuroN6/PostProcess/app_postprocess_pd_ui.c",
+    "Middlewares/NeuroN6/PostProcess/vnd_meta_pd.c",
+    "Middlewares/NeuroN6/PostProcess/PostProcessor_HandLM.c",
+    "Middlewares/NeuroN6/PostProcess/app_postprocess_handlm_ui.c",
+    "Middlewares/NeuroN6/PostProcess/vnd_meta_handlm.c",
+    "Middlewares/NeuroN6/PostProcess/vnd_meta.c",
+    "Middlewares/NeuroN6/Models/PalmDet/palmdet_model.c",
+    "Middlewares/NeuroN6/Models/HandLm/handlm_model.c"
+  ],
+  "npu_cflags": {
+    "about": "The flags this code is built with.",
+    "std": "-std=gnu17",
+    "optimisation": "-O2 -fno-strict-aliasing",
+    "warnings": ""
+  },
+  "defines": [
+    "LL_ATON_PLATFORM=9",
+    "LL_ATON_OSAL=5",
+    "LL_ATON_SW_FALLBACK=1",
+    "LL_ATON_RT_MODE=2",
+    "LL_ATON_DBG_BUFFER_INFO_EXCLUDED=1",
+    "APP_HAS_PARALLEL_NETWORKS=0"
+  ],
+  "include_dirs": [
+    "Core/Inc",
+    "Middlewares/ST/AI_Runtime/Inc",
+    "Middlewares/ST/AI_Runtime/Npu/Devices/STM32N6XX",
+    "Middlewares/ST/AI_Runtime/Npu/ll_aton",
+    "Middlewares/ST/lib_vision_models_pp/Inc",
+    "Middlewares/ST/lib_vision_models_pp/Src",
+    "Middlewares/ARM/CMSIS-DSP/Include",
+    "Middlewares/NeuroN6/PostProcess"
+  ],
+  "board_defines": {
+    "about": "The Neuro N6 board's identity, which usb_descriptors.c reads.",
+    "dir": "Utilities/usb",
+    "defines": [
+      "BOARD_VENDORID=0x1209",
+      "BOARD_PRODUCTID=0x8008",
+      "HAS_UNIQUE_ISERIAL_DESCRIPTOR"
+    ]
+  },
+  "libs": [
+    "Middlewares/ST/AI_Runtime/Lib/GCC/ARMCortexM55/NetworkRuntime1020_CM55_GCC.a"
+  ],
+  "ldflags": "-u _printf_float",
+  "bsp_sources": [
+    "neuron6_npu.c"
+  ],
+  "bsp_headers": [
+    "neuron6_npu.h"
+  ],
+  "hal_modules": [
+    "cacheaxi",
+    "ramcfg"
+  ],
+  "model": "Middlewares/NeuroN6/Models/PalmDet/model.json",
+  "models": [
+    "Middlewares/NeuroN6/Models/PalmDet/model.json",
+    "Middlewares/NeuroN6/Models/HandLm/model.json"
+  ]
+}

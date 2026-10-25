@@ -1,0 +1,112 @@
+================================================================================
+ SCOPE - READ THIS FIRST
+================================================================================
+
+ This repository is NOT wholly BSD 3-Clause. The BSD 3-Clause licence below
+ covers only Ohm Lab Ltd's original code. Third-party components keep their
+ own terms, some of which are NOT open source. THIRD-PARTY-NOTICES.md lists
+ every component, its origin, its licence and where the licence text lives:
+ read it before redistributing, relicensing or building a product.
+
+ EXCLUDED from the BSD 3-Clause grant. Ohm Lab Ltd does not sublicense them:
+
+ -- STMicroelectronics SLA0044: NOT open source. Use and redistribution only
+    for software that runs solely on an ST device; clause 5 forbids anything
+    that would subject it to open-source terms.
+      Middlewares/ST/AI_Runtime/
+      Middlewares/ST/lib_vision_models_pp/
+      Middlewares/NeuroN6/PostProcess/app_postprocess_nia*,
+        app_postprocess_iseg_yolo_v8_ui.*, app_postprocess_mpe_yolo_v8_ui.*
+      the network code ST Edge AI generated, in Middlewares/NeuroN6/Models/*/
+      FSBL/Middlewares/ST/STM32_ExtMem_Manager/
+
+ -- NXP LA_OPT: NOT open source. Use only in products that incorporate an NXP
+    part; distribution, where NXP's Software Content Register grants it, only
+    as object code within such a product.
+      Middlewares/NeuroN6/MayaW476/firmware/sduartspi_iw610.bin.se
+
+ -- Ohm Lab Model Licence 1.0: NOT open source. The NIA Triad-416 model in
+    Middlewares/NeuroN6/Models/Nia416/ (LICENSE-OhmLab-Model.txt), in every
+    form: its weights, the generated network, the weights on a board, and
+    firmware built from the two NIA examples. It may be used, copied,
+    modified and redistributed in any form, but executed only on Ohm Lab
+    hardware.
+
+ -- AGPL-3.0: the YOLOv8 networks in Middlewares/NeuroN6/Models/YoloV8Seg/
+    and YoloV8Pose/ (LICENSE.AGPL-3.0.txt in each; their generated C is also
+    SLA0044), and the main.c of Examples/Camera_YoloV8Seg_USB_FreeRTOS and
+    Examples/Camera_YoloV8Pose_WiFi_FreeRTOS. Nothing else here is AGPL-3.0.
+    See THIRD-PARTY-NOTICES.md 1.3.
+
+ -- Apache-2.0: the boot loader under FSBL/ (FSBL/LICENSE). It contains ST's
+    SLA0044 External Memory Manager, listed above.
+
+ -- BSD-3-Clause, MIT or Apache-2.0, third-party: the STM32N6 HAL and CMSIS
+    in Drivers/ (with Ohm Lab Ltd's changes to two HAL files), the ST camera
+    drivers, the Verisilicon VC8000NanoE encoder and ST's wrapper, FreeRTOS,
+    TinyUSB, CMSIS-DSP, lwIP with NXP's HTTP server, NXP's Wi-Fi driver, OS
+    abstraction and Mbed TLS transport (Middlewares/NeuroN6/Tls/
+    wm_mbedtls_net.c), Apache NimBLE and the configuration derived from it
+    (Middlewares/NeuroN6/BleHost/include/syscfg/syscfg.h), Mbed TLS, and the
+    patched HAL SDIO driver and HAL headers for the compile harness.
+
+ Ohm Lab Ltd's own code under other terms:
+
+ -- MIT: the post-processing, host-protocol and post-processor headers, the
+    Wi-Fi library, the DFU uploader, the NPU memory pools and the USB
+    descriptors.
+
+ -- CC0 1.0 Universal: the examples' own code, marked
+    SPDX-License-Identifier: CC0-1.0, so an example can be copied into another
+    project freely. Not the two YOLOv8 main.c files above, nor the four
+    ST-template-derived main.c files (Examples/BSPTest,
+    Examples/Camera_JpegStream_USB, Examples/Thermal_Stream_USB,
+    Examples/Camera_GlobalShutterThermal_USB_FreeRTOS; THIRD-PARTY-NOTICES.md
+    4.2), which keep their own terms.
+
+ Where a directory has its own LICENSE / LICENSE.txt / LICENSE.md / COPYING /
+ License.md file, or a file carries its own licence header or SPDX
+ identifier, those terms govern it and take precedence over the BSD 3-Clause
+ text below.
+
+================================================================================
+ BSD 3-Clause License - Ohm Lab Ltd original code only
+================================================================================
+
+BSD 3-Clause License
+
+Copyright (c) 2026, Ohm Lab Ltd
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+
+For the avoidance of doubt: "this software" in the BSD 3-Clause grant above
+means the Ohm Lab Ltd original material in this repository, and does not
+extend to any component listed in THIRD-PARTY-NOTICES.md.
+
+Contact: team@ohmlab.co.uk

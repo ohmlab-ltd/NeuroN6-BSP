@@ -1,0 +1,36 @@
+{
+ "name": "yolov8seg",
+ "model": {
+  "file": "yolov8n_256_quant_pc_ii_seg_coco-st.tflite",
+  "sha256": "3316733125a5fb85d66ed33993627b5d293b3baceb348b137132071ca365ebd6"
+ },
+ "stedgeai": "v4.0.1-20581",
+ "npu_runtime": "1.1.3-275",
+ "target": "stm32n6",
+ "options": "--native-float --cache-maintenance --Ocache-opt --enable-virtual-mem-pools --Os --optimization 3 --Omax-ca-pipe 4 --Oauto-sched --all-buffers-info",
+ "interface": "--input-data-type uint8 --inputs-ch-position chlast",
+ "epoch_controller": true,
+ "mempool": {
+  "file": "Utilities/npu/NeuroN6_MemPool.mpool",
+  "sha256": "07e5124a1905c3af20be51a97f42e658be590369a20057ac191259d2273ad20a"
+ },
+ "weights": {
+  "file": "yolov8seg_atonbuf.xSPI1.raw",
+  "address": "0x90300000",
+  "size": 3474865,
+  "sha256": "5d91401d1aace1e7da6f44945ff94f0b6ad4248c6158706d023799df29bc6a0a",
+  "crc32": "0x53494735"
+ },
+ "epochs": {
+  "total": 140,
+  "sw": 1,
+  "hybrid": 17,
+  "hw": 122
+ },
+ "files": {
+  "c": "yolov8seg.c",
+  "ecblobs": "yolov8seg_ecblobs.h",
+  "report": "yolov8seg_generate_report.txt",
+  "unit": "yolov8seg_model.c"
+ }
+}

@@ -1,0 +1,91 @@
+{
+  "about": [
+    "The Wi-Fi stack this example adds to the FreeRTOS vendor streaming project, and how it is built.",
+    "harness/examples/addstack.py reads it, with npu_build.json; paths are relative to the project's",
+    "Appli folder, where the middleware trees keep their repository paths."
+  ],
+
+  "middlewares": [
+    "Middlewares/NXP/wifi_nxp/",
+    "Middlewares/NXP/osa/",
+    "Middlewares/lwip/",
+    "Middlewares/NeuroN6/MayaW476/",
+    "Middlewares/NeuroN6/N6OTA/"
+  ],
+
+  "compile": [
+    "Middlewares/NXP/wifi_nxp/**/*.c",
+    "Middlewares/NXP/osa/**/*.c",
+    "Middlewares/lwip/src/api/*.c",
+    "Middlewares/lwip/src/core/**/*.c",
+    "Middlewares/lwip/src/netif/*.c",
+    "Middlewares/lwip/port/**/*.c",
+    "Middlewares/NeuroN6/MayaW476/**/*.c",
+    "Middlewares/NeuroN6/N6OTA/**/*.c"
+  ],
+
+  "cflags": {
+    "about": [
+      "The flags this code is built with. -fno-strict-aliasing is load-bearing:",
+      "without it the firmware download hangs. Under GCC 13, calling an",
+      "undeclared function is a warning; GCC 14, CubeIDE's, makes it an error, and -fpermissive",
+      "restores GCC 13's handling for the NXP code that relies on it."
+    ],
+    "std": "-std=gnu17",
+    "optimisation": "-O2 -fno-strict-aliasing",
+    "extra": "-fpermissive",
+    "warnings": ""
+  },
+
+  "defines": [
+    "SDK_OS_FREE_RTOS",
+    "OSA_USED",
+    "FSL_OSA_TASK_ENABLE=1",
+    "WIFI_IW610_BOARD_MURATA_2LL_M2",
+    "CONFIG_NXP_WIFI_SOFTAP_SUPPORT=1",
+    "CONFIG_5GHz_SUPPORT=0"
+  ],
+
+  "include_dirs": [
+    "Middlewares/NeuroN6/MayaW476",
+    "Middlewares/NeuroN6/MayaW476/maya_w4_board",
+    "Middlewares/NeuroN6/MayaW476/sdio_port",
+    "Middlewares/NeuroN6/N6OTA",
+    "Middlewares/NeuroN6/PostProcess",
+    "Middlewares/NXP/osa",
+    "Middlewares/NXP/osa/lists",
+    "Middlewares/NXP/osa/stubs",
+    "Middlewares/NXP/wifi_nxp/incl",
+    "Middlewares/NXP/wifi_nxp/incl/wlcmgr",
+    "Middlewares/NXP/wifi_nxp/incl/wifidriver",
+    "Middlewares/NXP/wifi_nxp/incl/wmcrypto",
+    "Middlewares/NXP/wifi_nxp/incl/port",
+    "Middlewares/NXP/wifi_nxp/incl/port/osa",
+    "Middlewares/NXP/wifi_nxp/incl/port/net",
+    "Middlewares/NXP/wifi_nxp/incl/port/net/hooks",
+    "Middlewares/NXP/wifi_nxp/port",
+    "Middlewares/NXP/wifi_nxp/port/osa",
+    "Middlewares/NXP/wifi_nxp/port/net",
+    "Middlewares/NXP/wifi_nxp/wifidriver",
+    "Middlewares/NXP/wifi_nxp/wifidriver/incl",
+    "Middlewares/NXP/wifi_nxp/sdio_nxp_abs/incl",
+    "Middlewares/NXP/wifi_nxp/wmcrypto/aescrypto",
+    "Middlewares/NXP/wifi_nxp/firmware_dnld",
+    "Middlewares/NXP/wifi_nxp/fwdnld_intf_abs",
+    "Middlewares/NXP/wifi_nxp/dhcpd",
+    "Middlewares/NXP/wifi_nxp/wifi_bt_firmware/iw610x",
+    "Middlewares/lwip/src/include",
+    "Middlewares/lwip/port",
+    "Middlewares/lwip/port/sys_arch/dynamic"
+  ],
+
+  "hal_modules": ["sdio", "uart"],
+  "hal_files": ["hal_uart_ex", "ll_sdmmc"],
+  "hal_patched": {
+    "about": "The SDIO driver and its low-level layer, with the fixes the radio needs (Utilities/hal).",
+    "stm32n6xx_hal_sdio.c": "Utilities/hal/stm32n6xx_hal_sdio.c",
+    "stm32n6xx_ll_sdmmc.c": "Utilities/hal/stm32n6xx_ll_sdmmc.c"
+  },
+
+  "firmware": "Middlewares/NeuroN6/MayaW476/firmware/firmware.json"
+}

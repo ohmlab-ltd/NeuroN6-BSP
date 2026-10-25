@@ -1,0 +1,22 @@
+This example's network is derived from Ultralytics YOLOv8 and carries
+AGPL-3.0. Distributing a device or a service built on it places
+obligations on the whole product, which is not true of the other network
+examples here. The firmware also contains STMicroelectronics software
+under SLA0044, whose terms in most cases forbid distributing, or using
+other than internally, software that combines the two while AGPL-3.0
+governs the model.
+
+This example's main.c is licensed under AGPL-3.0 as well, as it embeds
+the network; the licence text is
+Middlewares/NeuroN6/Models/YoloV8Pose/LICENSE.AGPL-3.0.txt.
+
+Because this file is present, harness/compile.sh and
+harness/examples/cubebuild.sh --all skip this example, and a default build
+of this repository produces nothing derived from that network. To build it
+anyway:
+
+    NEURON6_BUILD_RESTRICTED=1 bash harness/compile.sh
+    bash harness/examples/cubebuild.sh Camera_YoloV8Pose_WiFi_FreeRTOS
+
+See this example's README, and THIRD-PARTY-NOTICES.md, before showing,
+shipping or handing over anything built from it.

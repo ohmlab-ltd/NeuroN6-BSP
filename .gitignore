@@ -1,0 +1,41 @@
+# Build output. CubeIDE regenerates Debug/ and Release/ from the project model
+# when a project is imported, so they are not part of an example, exactly as
+# ST's own CubeN6 examples ship none.
+Debug/
+Release/
+*.o
+*.d
+*.elf
+*.map
+*.su
+*.cyclo
+*.list
+!objects.list
+*.lst
+*.hex
+build/
+
+# Editor and OS cruft
+.vscode/
+.idea/
+*.swp
+*.launch
+.DS_Store
+Thumbs.db
+desktop.ini
+__pycache__/
+*.pyc
+.venv/
+
+# Bench run output: harness/n6test.py and the bench tools write reports, logs
+# and pictures into harness/board-tests/ on every run. Of that folder only
+# STATUS.md, the verification record, belongs to the repository.
+harness/board-tests/*.txt
+harness/board-tests/*.log
+harness/board-tests/*.jpg
+harness/board-tests/results-*.md
+harness/board-tests/breadcrumbs-*.md
+harness/board-tests/stream-*
+
+# A Wi-Fi network's name and password, kept out of the repository
+wifi_credentials.h

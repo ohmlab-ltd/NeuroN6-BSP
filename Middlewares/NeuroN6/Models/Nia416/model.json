@@ -1,0 +1,36 @@
+{
+ "name": "nia416",
+ "model": {
+  "file": "nia_triad416_shipdist_int8_416_ASYM_CALIBRATED.onnx",
+  "sha256": "3dce2a18eb58f80bfdd81a5a2b6c6cb384cb5eb6680783d503f2832c804577ca"
+ },
+ "stedgeai": "v4.0.1-20581",
+ "npu_runtime": "1.1.3-275",
+ "target": "stm32n6",
+ "options": "--native-float --cache-maintenance --Ocache-opt --enable-virtual-mem-pools --Os --optimization 3 --Omax-ca-pipe 4 --Oauto-sched --all-buffers-info",
+ "interface": "--input-data-type uint8 --inputs-ch-position chlast",
+ "epoch_controller": true,
+ "mempool": {
+  "file": "Utilities/npu/NeuroN6_MemPool.mpool",
+  "sha256": "268395fd519f980ec454f64a51adbc29c393c17c56c9e1e42850dccdc563cfde"
+ },
+ "weights": {
+  "file": "nia416_atonbuf.xSPI1.raw",
+  "address": "0x90300000",
+  "size": 8553328,
+  "sha256": "3e27cffbcd60048dcb7a485838c06196b823d1c39fa2e664e818f6a1d1aa118b",
+  "crc32": "0x221B72B9"
+ },
+ "epochs": {
+  "total": 88,
+  "sw": 0,
+  "hybrid": 2,
+  "hw": 86
+ },
+ "files": {
+  "c": "nia416.c",
+  "ecblobs": "nia416_ecblobs.h",
+  "report": "nia416_generate_report.txt",
+  "unit": "nia416_model.c"
+ }
+}

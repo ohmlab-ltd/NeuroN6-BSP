@@ -1,0 +1,136 @@
+/** @file firmware_load.c
+ *
+ *  @brief  This file provides firmware download related API
+ *
+ *  Copyright 2021-2023 NXP
+ *
+ *  SPDX-License-Identifier: BSD-3-Clause
+ *
+ */
+
+
+#include <wmlog.h>
+/* Additional WMSDK header files */
+#include "type_decls.h"
+#include "fsl_common.h"
+#include "firmware_dnld.h"
+#include "fwdnld_intf_abs.h"
+
+extern void NeuroN6_DbgPrint(const char *msg);
+
+static const uint8_t *conn_fw;
+
+/* remove this after mlan integration complete */
+enum
+{
+    FWDNLD_STATUS_FAILURE = 0xffffffff,
+    FWDNLD_STATUS_SUCCESS = 0,
+    FWDNLD_STATUS_SKIP,
+    FWDNLD_CARD_NOT_DETECTED = 3,
+    FWDNLD_STATUS_FW_DNLD_FAILED,
+    FWDNLD_STATUS_FW_NOT_DETECTED = 5,
+    FWDNLD_STATUS_FW_NOT_READY,
+    FWDNLD_STATUS_FW_XZ_FAILED,
+    FWDNLD_CARD_CMD_TIMEOUT
+};
+
+static int32_t conn_download_normal_fw(const t_u8 *connfw_dl, t_u32 firmwarelen, fwdnld_intf_t *intf)
+{
+    t_u32 offset        = 0;
+    int32_t ret         = FWDNLD_STATUS_FAILURE;
+    t_u32 remaining_len = firmwarelen;
+    uint32_t len        = 0;
+
+    if (firmwarelen == 0U)
+    {
+        return ret;
+    }
+
+    if (intf->intf_s.fwdnld_intf_send != NULL)
+    {
+        ret = (int32_t)intf->intf_s.fwdnld_intf_send(intf, (const void *)(connfw_dl + offset), remaining_len, &len);
+    }
+
+    return ret;
+}
+
+
+/*
+ * Download firmware to the card through SDIO.
+ * The firmware is stored in Flash.
+ * in param intf returned from the interface init
+ */
+int32_t firmware_download(const uint8_t *fw_start_addr, const size_t size, void *intf, uint8_t fw_reload)
+{
+    t_u32 firmwarelen;
+    int32_t ret         = FWDNLD_STATUS_SUCCESS;
+    fwdnld_intf_t *iface = (fwdnld_intf_t *)intf;
+
+    if (size == 0U)
+    {
+        return ret;
+    }
+
+    if (iface->intf_s.fwdnld_intf_prepare != NULL)
+    {
+        NeuroN6_DbgPrint("[FW Download] prepare interface...\r\n");
+        ret = (int32_t)iface->intf_s.fwdnld_intf_prepare(iface, NULL);
+        if (ret != FWDNLD_STATUS_SUCCESS)
+        {
+            NeuroN6_DbgPrint("[FW Download] prepare FAILED.\r\n");
+            return ret;
+        }
+    }
+
+#if (CONFIG_WIFI_IND_DNLD)
+    if ((fw_reload != 0U) && (iface->intf_s.fwdnld_intf_check_reload != NULL))
+    {
+        ret = iface->intf_s.fwdnld_intf_check_reload(iface, fw_reload);
+        if (ret != FWDNLD_STATUS_SUCCESS)
+        {
+            return ret;
+        }
+    }
+#endif
+
+    conn_fw = fw_start_addr;
+
+    PRINTF("[FW Download] Start to download firmware from 0x%x: %u\r\n", (t_u32)conn_fw, OSA_TimeGetMsec());
+    NeuroN6_DbgPrint("[FW Download] sending image over SDIO...\r\n");
+
+    firmwarelen = size;
+    /*Making this section as #if 00 for now, as the decopress and
+     * verification of compression etc funcitons are not present*/
+    {
+        fwdnld_io_d(
+            "Un-compressed image found, start download,"
+            " len: %d",
+            firmwarelen);
+        ret = conn_download_normal_fw(conn_fw, firmwarelen, iface);
+    }
+
+    if (ret != FWDNLD_STATUS_SUCCESS)
+    {
+        NeuroN6_DbgPrint("[FW Download] image send FAILED.\r\n");
+        return FWDNLD_STATUS_FAILURE;
+    }
+    NeuroN6_DbgPrint("[FW Download] image sent; waiting for FW ready...\r\n");
+    if (iface->intf_s.fwdnld_intf_check_ready != NULL)
+    {
+        ret = (int32_t)iface->intf_s.fwdnld_intf_check_ready(iface, NULL);
+        if (ret == FWDNLD_STATUS_SUCCESS)
+        {
+            NeuroN6_DbgPrint("[FW Download] FW ready.\r\n");
+        }
+        else
+        {
+            NeuroN6_DbgPrint("[FW Download] FW ready check FAILED.\r\n");
+        }
+        return ret;
+    }
+    else
+    {
+        PRINTF("[FW Download]BLE FW is downloaded: %u\r\n", OSA_TimeGetMsec());
+    }
+    return ret;
+}

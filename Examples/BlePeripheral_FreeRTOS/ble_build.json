@@ -1,0 +1,65 @@
+{
+  "about": [
+    "The BLE host this example adds: Apache NimBLE's host, its port to the",
+    "Neuro N6 (Middlewares/NeuroN6/BleHost) and the Mbed TLS arithmetic its pairing uses.",
+    "harness/examples/addstack.py reads it, with wifi_build.json, which loads the radio's",
+    "firmware; paths are relative to the project's Appli folder, where the middleware trees",
+    "keep their repository paths."
+  ],
+
+  "middlewares": [
+    "Middlewares/nimble/",
+    "Middlewares/mbedtls/",
+    "Middlewares/NeuroN6/BleHost/"
+  ],
+
+  "compile": [
+    "Middlewares/nimble/nimble/host/src/*.c",
+    "Middlewares/nimble/nimble/host/util/src/*.c",
+    "Middlewares/nimble/nimble/host/services/gap/src/*.c",
+    "Middlewares/nimble/nimble/host/services/gatt/src/*.c",
+    "Middlewares/nimble/nimble/host/services/dis/src/*.c",
+    "Middlewares/nimble/nimble/host/services/bas/src/*.c",
+    "Middlewares/nimble/nimble/host/store/config/src/*.c",
+    "Middlewares/nimble/nimble/transport/src/*.c",
+    "Middlewares/nimble/porting/nimble/src/*.c",
+    "Middlewares/nimble/porting/npl/freertos/src/*.c",
+    "Middlewares/mbedtls/library/*.c",
+    "Middlewares/NeuroN6/BleHost/*.c"
+  ],
+
+  "cflags": {
+    "about": [
+      "The flags this code is built with. NimBLE reads its packets through structures laid",
+      "over byte buffers, so strict aliasing is off, as it is for the Wi-Fi stack."
+    ],
+    "std": "-std=gnu17",
+    "optimisation": "-Os -fno-strict-aliasing",
+    "extra": "",
+    "warnings": ""
+  },
+
+  "defines": [
+    "MBEDTLS_CONFIG_FILE=\"mbedtls_config_ble.h\"",
+    "NIMBLE_NPL_OS_EXTRA_INCLUDE=\"stm32n6xx.h\""
+  ],
+
+  "include_dirs": [
+    "Middlewares/NeuroN6/BleHost",
+    "Middlewares/NeuroN6/BleHost/include",
+    "Middlewares/nimble/nimble/include",
+    "Middlewares/nimble/nimble/host/include",
+    "Middlewares/nimble/nimble/host/util/include",
+    "Middlewares/nimble/nimble/host/services/gap/include",
+    "Middlewares/nimble/nimble/host/services/gatt/include",
+    "Middlewares/nimble/nimble/host/services/dis/include",
+    "Middlewares/nimble/nimble/host/services/bas/include",
+    "Middlewares/nimble/nimble/host/store/config/include",
+    "Middlewares/nimble/nimble/transport/include",
+    "Middlewares/nimble/porting/nimble/include",
+    "Middlewares/nimble/porting/npl/freertos/include",
+    "Middlewares/mbedtls/include"
+  ],
+
+  "hal_modules": ["uart"]
+}

@@ -1,0 +1,98 @@
+Please start by looking at the documentation under
+doxy/refman/.
+
+/* Doxygen related documentation */
+/**
+* \mainpage
+*
+* \section intro Introduction
+*
+* NXP wireless SoCs require a combination of firmware binary image 
+* streamed into the radio subsystem, and driver source code compiled
+* onto the application MCU. The radio driver source code
+* provides APIs that enable a developer to send and receive packets over
+* the radio interfaces by communicating with the firmware images that 
+* are streamed into the radio subsystems on start-up.
+*
+* \subsection devdoc Developer Documentation
+*
+* This manual provides developer reference documentation for Wi-Fi driver and
+* Wi-Fi Connection Manager.
+* Refer to the source code for additional information.
+*
+* \note
+* The File Documentation provides documentation for all the APIs that are
+* available in Wi-Fi driver and connection manager.\n
+* \n
+*
+* \subsection abbr Abbreviations and acronyms
+*
+* Abbreviation | Description
+* ------------ | -----------------------------------------------------------
+* ACS          | auto channel selection
+* AID          | association ID
+* AMI          | Ambient Motion Index
+* AMPDU        | aggregate medium access control protocol data unit
+* AP           | Access Point
+* ARP          | address resolution protocol
+* BSS          |  basic service set
+* BSSID        | basic servivce set ID
+* BTM          | BSS transition management
+* CA           | Certificate Authority
+* CCK          | complementary code keying
+* CLI          | command line input
+* CSI          | channel state information
+* CW           | continuous wave
+* DH           | Diffie Hellman
+* DPP          | device provisioning protocol
+* DTIM         | delivery traffic indication map
+* EAP          | Extensible Authentication Protocol
+* EAP TLS      | Extensible Authentication Protocol Transport Layer Security
+* FCS          | frame check sequence
+* FTM          | fine timing measurement
+* GI           | guard interval
+* HE           | 802.11ax high efficiency
+* HT           | 802.11n high throughput
+* HTC          | high throughput control
+* LDPC         | low density parity check
+* MBO          | multi band operation
+* MEF          | memory efficient filtering
+* MFPC         | Management Frame Protection Capable
+* MFPR         | Management frame protection required
+* NAN          | Neighbor Awareness Networking
+* NSS          | N*N MIMO spatial stream
+* OBSS         | overlapping basic service set
+* OCE          | Optimized connectivity experience
+* OMI          | operating mode indication
+* OWE          | opportunistic wireless encryption
+* P2P          | Peer to Peer 
+* PBC          | push button configuration
+* PEAP         | Protected Extensible Authentication Protocol
+* PKEX         | Public Key Exchange
+* PMF          | protected management frame
+* PMK          | pairwise master key
+* PMKSA        | pairwise master key security association
+* PS           | power save
+* PTA          | packet traffic arbitration
+* PWE          | Password Element
+* QoS          | quality of service
+* RSSI         | received signal strength indicator
+* RTS          | request to send
+* SAD          | software antenna diversity
+* SAE          | Simultaneous Authentication of Equals
+* SSID         | service set ID
+* STBC         | space time block code
+* TBTT         | target beacon transmission time
+* TIM          | Traffic Indication Map
+* TRPC         | transient receptor potential canonical
+* TSF          | timing synchronization function
+* TSP          | thermal safeguard protection
+* TWT          | target wake time
+* UAPSD        | unscheduled automatic power save delivery
+* VHT          | 802.11ac very high throughput
+* WLCMGR       | Wi-Fi command manager
+*/
+
+
+
+

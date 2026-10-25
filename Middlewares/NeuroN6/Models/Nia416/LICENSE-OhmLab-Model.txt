@@ -1,0 +1,108 @@
+Ohm Lab Model Licence Agreement
+Version 1.0, September 2026
+SPDX-License-Identifier: LicenseRef-OhmLab-Model-1.0
+
+Copyright (c) 2026 Ohm Lab Ltd. All rights reserved.
+
+This agreement applies to the Nia object detection model and to any other
+model that Ohm Lab distributes under it.
+
+BY INSTALLING, COPYING, DOWNLOADING, ACCESSING, CONVERTING, TRAINING OR
+OTHERWISE USING THE MODEL OR ANY PART THEREOF (AND THE RELATED DOCUMENTATION)
+FROM OHM LAB LTD (OHM LAB), THE RECIPIENT, ON BEHALF OF HIMSELF OR HERSELF, OR
+ON BEHALF OF ANY ENTITY BY WHICH SUCH RECIPIENT IS EMPLOYED AND/OR ENGAGED,
+AGREES TO BE BOUND BY THIS LICENCE AGREEMENT.
+
+Definitions
+
+"Model" means the neural network model that Ohm Lab distributes with this
+agreement, including its architecture, weights, biases and quantisation
+parameters, both in the form in which Ohm Lab distributes it (for the Nia
+model, the file nia_1_int8.onnx) and in any converted, compiled or generated
+form of it. That includes source code, header files and binary weight files
+generated from it by a model compiler such as ST Edge AI, and any copy of those
+weights written to the memory of a device.
+
+"Derivative Model" means any model obtained by modifying the Model, including
+by training, fine-tuning, quantising, pruning, re-exporting or converting it,
+together with any converted, compiled or generated form of such a model.
+
+"Ohm Lab Hardware" means a board, module or carrier designed by Ohm Lab and
+manufactured by or for Ohm Lab, including the Neuro N6 board and the Neuro
+Vision camera modules and carriers, and any other hardware that Ohm Lab
+designates as Ohm Lab Hardware in writing.
+
+Under Ohm Lab's intellectual property rights, the use, reproduction,
+modification (including training and fine-tuning) and redistribution of the
+Model and of Derivative Models, in any form, are permitted provided that the
+following conditions are met:
+
+1. Redistribution of the Model or of a Derivative Model, except as embedded
+   into firmware for Ohm Lab Hardware or a software update for such hardware,
+   must retain any copyright notice provided with the Model, this list of
+   conditions, and the disclaimers set forth below as items 11 and 12.
+
+2. A Derivative Model that is redistributed must state that it is derived from
+   the Model and must name Ohm Lab as the author of the Model.
+
+3. Neither the name of Ohm Lab nor the names of other contributors to the Model
+   may be used to endorse or promote products derived from the Model or any
+   part thereof without specific written permission.
+
+4. The Model, any Derivative Model and any part of either must be used and
+   execute solely and exclusively on or in combination with Ohm Lab Hardware.
+   The recipient may train, fine-tune, evaluate and convert the Model and
+   Derivative Models on any computer, provided that it does so in order to
+   execute the result on Ohm Lab Hardware.
+
+5. The Model was designed and optimised specifically for the instruction sets
+   of STMicroelectronics STM32N6 series microcontrollers and of the Arm
+   Ethos-U55 and Ethos-U65 neural processing units. Except as item 4 permits
+   for training, fine-tuning, evaluation and conversion, this agreement grants
+   no right to execute the Model, a Derivative Model or any part of either on
+   any hardware that is not Ohm Lab Hardware, whatever its processor or
+   accelerator. To request a licence for use on any such hardware, contact Ohm
+   Lab at team@ohmlab.co.uk.
+
+6. No use, reproduction or redistribution of the Model partially or totally
+   may be done in any manner that would subject the Model to any Open Source
+   Terms. "Open Source Terms" shall mean any open source licence which requires
+   as part of distribution of software that the source code of such software is
+   distributed therewith or otherwise made available, or open source licence
+   that substantially complies with the Open Source definition specified at
+   www.opensource.org and any other comparable open source licence such as for
+   example GNU General Public License (GPL), Eclipse Public License (EPL),
+   Apache Software License, BSD license or MIT license.
+
+7. Ohm Lab has no obligation to provide any maintenance, support or updates for
+   the Model.
+
+8. The Model is and will remain the exclusive property of Ohm Lab and its
+   licensors. The recipient will not take any action that jeopardises Ohm
+   Lab's and its licensors' proprietary rights or acquire any rights in the
+   Model, except the limited rights specified hereunder.
+
+9. The recipient shall comply with all applicable laws and regulations
+   affecting the use of the Model or any part thereof, including any applicable
+   export control law or regulation.
+
+10. Redistribution and use of the Model or any part thereof other than as
+    permitted under this licence is void and will automatically terminate the
+    recipient's rights under this licence.
+
+11. THE MODEL IS PROVIDED BY OHM LAB AND CONTRIBUTORS "AS IS" AND ANY EXPRESS,
+    IMPLIED OR STATUTORY WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NON-INFRINGEMENT OF THIRD PARTY INTELLECTUAL PROPERTY RIGHTS, ARE DISCLAIMED
+    TO THE FULLEST EXTENT PERMITTED BY LAW. IN NO EVENT SHALL OHM LAB OR
+    CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+    EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+    PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+    OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+    OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THE MODEL, EVEN IF ADVISED
+    OF THE POSSIBILITY OF SUCH DAMAGE.
+
+12. EXCEPT AS EXPRESSLY PERMITTED HEREUNDER, NO LICENCE OR OTHER RIGHTS, WHETHER
+    EXPRESS OR IMPLIED, ARE GRANTED UNDER ANY PATENT OR OTHER INTELLECTUAL
+    PROPERTY RIGHTS OF OHM LAB OR ANY THIRD PARTY.

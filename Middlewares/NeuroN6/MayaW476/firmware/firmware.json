@@ -1,0 +1,19 @@
+{
+ "about": [
+  "The IW610 combo firmware the Wi-Fi stack downloads into the MAYA-W476 at",
+  "every bring-up. It lives in its own region of external flash, read in",
+  "place, and is written once: harness/n6weights.py checks it, and writes it",
+  "only when asked. The same shape as a network's model.json, so the same",
+  "tool handles both."
+ ],
+ "name": "iw610-firmware",
+ "source": "NXP wifi_nb_fw, iw610x/sduartspi_iw610.bin.se at 7d80b36c846d7948acc19fff17d9bfcc3e8acd53 (2026-03-12)",
+ "version": "iw610w-V0, SDIO, FP99, 18.99.8.p10, PVE_FIX 1",
+ "weights": {
+  "file": "sduartspi_iw610.bin.se",
+  "address": "0x91E00000",
+  "size": 995992,
+  "sha256": "79d5b1c9c7d59a00282707da17ead63dd0139a0931fb090ee84df57dbab97c95",
+  "crc32": "0x8BEF4C0C"
+ }
+}
