@@ -16,7 +16,7 @@ camera is a temperature, in hundredths of a kelvin.
 ## Build and run
 
 Import the projects under `STM32CubeIDE/` into STM32CubeIDE 2.2.0 and build
-`Debug`. Upload only `Appli`: `FSBL` is the boot loader the board already
+`Debug`. Upload only `Appli`: `FSBL` is the bootloader the board already
 runs. Or:
 
 ```bash
@@ -28,7 +28,7 @@ python harness/examples/runex.py ReadThermal      # upload, watch the console, s
 
 Open the board's USB serial port. The camera starts when a terminal opens the console (or ten seconds after the board starts), boots for about two seconds and prints its serial number, sensor and housing temperatures and gain setting. Then, once a second: the frames in that second, the centre, coldest and hottest temperatures, and where the hottest pixel is; a hand reads about 30 to 34 C. Every ten seconds a line describes the video link.
 
-Readings run high until the first flat-field correction, a few seconds in (a click): about 8 C on the camera tested. The camera pauses its video for about a second now and then to recalibrate, also with a click.
+Readings run high until the first flat-field correction, a few seconds in (a click): about 8 C. The camera pauses its video for about a second now and then to recalibrate, also with a click.
 
 ## Notes
 

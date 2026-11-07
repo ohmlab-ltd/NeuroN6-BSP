@@ -150,7 +150,7 @@ static uint32_t IO_CurrentPull(const BSP_IO_PinInfo_t *pPin)
   return GPIO_NOPULL;
 }
 
-/* Start the DWT cycle counter, which reset and the boot loader leave off. */
+/* Start the DWT cycle counter, which reset and the bootloader leave off. */
 static int32_t IO_EnableCycleCounter(void)
 {
   uint32_t first;
@@ -518,7 +518,7 @@ int32_t BSP_IO_ReadPulse(uint32_t Pin, uint32_t State, uint32_t Timeout_us, uint
     Timeout_us = BSP_IO_PULSE_MAX_TIMEOUT_US;
   }
 
-  /* Read the CPU clock rather than assume it: the boot loader owns the clock tree. */
+  /* Read the CPU clock rather than assume it: the bootloader owns the clock tree. */
   cycles_per_us = HAL_RCC_GetCpuClockFreq() / 1000000U;
 
   if (cycles_per_us == 0U)

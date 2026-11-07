@@ -49,7 +49,7 @@ typedef enum
 } ButtonMode_TypeDef;
 
 #define NEURON6_BSP_VERSION_MAIN   (0x00UL) /*!< [31:24] main version */
-#define NEURON6_BSP_VERSION_SUB1   (0x01UL) /*!< [23:16] sub1 version */
+#define NEURON6_BSP_VERSION_SUB1   (0x02UL) /*!< [23:16] sub1 version */
 #define NEURON6_BSP_VERSION_SUB2   (0x00UL) /*!< [15:8]  sub2 version */
 #define NEURON6_BSP_VERSION_RC     (0x00UL) /*!< [7:0]   release candidate */
 #define NEURON6_BSP_VERSION        ((NEURON6_BSP_VERSION_MAIN << 24)\

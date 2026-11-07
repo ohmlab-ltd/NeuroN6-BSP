@@ -80,8 +80,7 @@ bash harness/examples/cubebuild.sh Camera_Nia416Stream_USB_FreeRTOS
   which comes first on the include path. On Windows both names match either
   file.
 - The epoch-controller blobs (217 KB) run from PSRAM; the startup file copies
-  them there before clearing `.bss`, which overlaps their load copy. The image
-  is 502,720 bytes, under the boot loader's 1.5 MB limit.
+  them there before clearing `.bss`, which overlaps their load copy.
 
 ## Tasks
 
@@ -127,6 +126,5 @@ largest frame). The network's crop follows the mode.
 QVGA cannot feed the network: the auxiliary pipe only reduces, and 240 lines
 cannot make a 416-pixel square.
 
-Tested on a board with the OV5640-W carrier: 30.0 fps over 60 s with no gap in
-the frame counter, inference 49 to 52 ms, detections updated ten times a
-second.
+The stream runs at 30 fps; inference takes 49 to 52 ms, and the detections
+update ten times a second.

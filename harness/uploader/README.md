@@ -22,23 +22,23 @@ ends an image left half written and erases nothing. With more than one board
 connected, `--port` names the one to upload to (its application's or its
 bootloader's port); the uploader does not choose.
 
-## Writing the boot loader
+## Writing the bootloader
 
-The boot loader's own flash is written only when asked: the CLI refuses an
+The bootloader's own flash is written only when asked: the CLI refuses an
 address below the application slot without `--fsbl`, and with it takes only a
-boot loader image, which it puts at `0x90000000`:
+bootloader image, which it puts at `0x90000000`:
 
 ```bash
 python harness/uploader/neuro-n6-uploader-cli.py --bin bootloader_Trusted.bin --fsbl
 ```
 
 `DfuSession.program()` in `utils/dfu.py` needs `fsbl=True` for the same.
-Both refuse a boot loader's image (`<name>_FSBL_Trusted.bin`, which every
+Both refuse a bootloader's image (`<name>_FSBL_Trusted.bin`, which every
 example builds) for an application slot. v2.6.2 itself neither locks its own
-flash nor checks that what is written there is a boot loader: see
+flash nor checks that what is written there is a bootloader: see
 [docs/BOOT-CONTRACT.md, "Known issues in v2.6.2"](../../docs/BOOT-CONTRACT.md#known-issues-in-v262).
 A wrong image there, or power lost while it is written, leaves a board that
 no longer starts and that no tool here can reach.
 
-`harness/bench/hosttest/fsbl` runs both against the boot loader's own source
+`harness/bench/hosttest/fsbl` runs both against the bootloader's own source
 on a simulated board.

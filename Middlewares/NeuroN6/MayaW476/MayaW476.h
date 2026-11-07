@@ -105,7 +105,7 @@ bool MayaW476_ApHidden(void);
 
 /* The board's own SoftAP password, xxxx-xxxx-xxxx-xxxx (16 random characters
  * from the hardware generator), kept in asset store record 3. The first call
- * stores it and restarts the board once; if the boot loader cannot store it,
+ * stores it and restarts the board once; if the bootloader cannot store it,
  * it lasts until the next restart. "" if the generator fails. */
 const char *MayaW476_DevicePassword(void);
 
@@ -209,7 +209,7 @@ int32_t MayaW476_RSSI(void);
 const char *MayaW476_FirmwareVersion(void);
 
 /* Transmit power the firmware accepted, in dBm; -1 if it will not report it.
- * The board caps it at 8 dBm, the EMC-tested level, when the radio starts. */
+ * The board caps it at 8 dBm when the radio starts. */
 int32_t MayaW476_TxPower(void);
 
 /* RSSI (dBm) and SNR (dB) averaged over the last several packets; steadier

@@ -1,6 +1,6 @@
-# The boot loader on a simulated board
+# The bootloader on a simulated board
 
-`FSBL/Core/Src/main.c`, the boot loader's own source, built for a PC and run
+`FSBL/Core/Src/main.c`, the bootloader's own source, built for a PC and run
 against a simulated Neuro N6. No board, no USB.
 
 ```bash

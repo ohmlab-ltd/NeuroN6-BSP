@@ -129,7 +129,7 @@ static void BOARD_IsolationConfig(void)
   BOARD_RisafConfig();
 
 #if defined(CPU_IN_SECURE_STATE)
-  /* The PWR supply configuration and the five pins the boot loader leaves owned: same
+  /* The PWR supply configuration and the five pins the bootloader leaves owned: same
    * attributes, so a later write from this compartment is not refused. */
   HAL_PWR_ConfigAttributes(PWR_ITEM_0, PWR_SEC_NPRIV);
 
@@ -146,7 +146,7 @@ static void BOARD_IsolationConfig(void)
 #endif /* CPU_IN_SECURE_STATE */
 }
 
-/* Power up AXISRAM3-6, which the boot loader leaves shut down. Skipped without the
+/* Power up AXISRAM3-6, which the bootloader leaves shut down. Skipped without the
  * RAMCFG HAL module, for projects that use only AXISRAM1-2. */
 static void BOARD_AxisramEnable(void)
 {

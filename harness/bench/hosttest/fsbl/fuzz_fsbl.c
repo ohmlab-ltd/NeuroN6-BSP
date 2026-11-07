@@ -1,4 +1,4 @@
-/* The boot loader's source on the simulated board, driven at random.
+/* The bootloader's source on the simulated board, driven at random.
  *
  * test_fsbl.c holds directed cases; this generates thousands from a seed and
  * holds the loader to what must be true of all of them:
@@ -7,7 +7,7 @@
  *            model of the upload protocol says what the flash may then hold.
  *            The loader must not erase or program outside what an accepted
  *            erase covered, must never touch its own flash unless that was
- *            unlocked and the image is a boot loader's, must leave every
+ *            unlocked and the image is a bootloader's, must leave every
  *            image it accepted whole, and must still be answering.
  *
  *   boots    A board in any state: with or without a control block, slots
@@ -290,7 +290,7 @@ static uint32_t some_size(uint32_t want)
 /* One image, sent more or less as it should be. */
 static void send_image(int slot)
 {
-  /* Three uploads in ten aim at the boot loader's own flash: most as a proper
+  /* Three uploads in ten aim at the bootloader's own flash: most as a proper
    * update of it, the rest by accident. */
   const int at_loader = chance(30);
   const int fsbl = at_loader ? chance(75) : chance(10);
@@ -452,7 +452,7 @@ static void fill_slot(int slot, n6_ota_cb_t *cb)
                                                * tool that keeps no record */
     *sim_flash(off + 0x800u + below(size - 0x800u)) ^= (uint8_t)(1u << below(8u));
     story(" %lu:bad", (unsigned long)slot, 0);
-  } else if (kind < 83u) {                    /* a boot loader, put there by mistake */
+  } else if (kind < 83u) {                    /* a bootloader, put there by mistake */
     uint8_t *f = make_image(2 + slot, size, 1);
     memcpy(sim_flash(off), f, size);
     cb->slot[slot].crc32 = sim_crc32(f, size);

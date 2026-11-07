@@ -1,18 +1,50 @@
 # Release notes
 
-## v0.1.0 (unreleased)
+## v0.2.0 (7 November 2026)
+
+Adds Ohm Lab's B-CAMS-IMX adapter, with a flex connector for ST's B-CAMS-IMX
+camera module and an SD card slot, and the VD65G4 on the NeuroVision ST cam
+carrier. 37 examples.
+
+### New
+
+- **IMX335 (B-CAMS-IMX):** `neuron6_camera_imx335`, RAW10 at 1600 Mbps a lane, crop and resize on the main pipe, and auto-exposure and auto white balance from the pipe's statistics (`neuron6_camera_ae`, `neuron6_camera_awb`).
+- **Time of flight (B-CAMS-IMX):** `neuron6_ranging_vl53l5cx`, the module's VL53L5CX through ST's ultra lite driver (BSD-3-Clause): 4 x 4 zones at up to 60 Hz, 8 x 8 at up to 15 Hz. TOF_INT (PA11) is held on its EXTI line, so waiting for a result costs no bus time.
+- **SD card:** `neuron6_sd` on SDMMC1, sharing the radio's bus (one at a time), in high-speed mode at 33.3 MHz, about 10 MB/s. FatFs R0.16 (FAT and exFAT) runs on it.
+- **Examples:** `Camera_UvcStream_IMX335_USB` (2592x1944 at 21 fps, quality 5, with the time-of-flight sensor's nearest target on the console) and `Camera_JpegToSd_IMX335` (2592x1944 JPEGs to the card, each with its 8 x 8 time-of-flight grid as a CSV file).
+- **BSPTest:** `i2cscan`, `bcams`, `bcamstof`, `bcamslink`, `bcamspipe`, `bcamspins`, `sd`, `sdfat` and `vencspeed`.
+- **Flash loader:** `Utilities/ExternalLoader/NeuroN6_MX25UM25645G.stldr` reads and writes the board's flash from STM32CubeProgrammer over an ST-LINK (development boot, access port 1).
+
+### Changed
+
+- **Camera clocks within RM0486's maximums:** the D-PHY configuration clock is 20 MHz from the crystal (was 26.7 MHz from the HSI) and the pixel pipes 300 MHz (was 400 MHz), with dividers computed from the bootloader's PLLs.
+- **HAL fix 3:** one CSI-2 data lane on physical lane 1 ([docs/HAL-PATCHES.md](docs/HAL-PATCHES.md)). It lets the VD65G4 stream on the NeuroVision ST cam carrier.
+- **One lane setting per carrier, for both ST cam sensors:** `BSP_CAMERA_CARRIER_INVERTED` on the NeuroVision ST cam carrier, which crosses the pair, and `STANDARD` on the thermal carrier. The VD66GY no longer swaps its lanes on the sensor, so code that sets its carrier must swap the setting it passes.
+- `Camera_UvcStream_VD66GY_USB` and `Camera_UvcStream_VD65G4_USB` pick the carrier with one line, `UVC_CARRIER` (default ST cam). `Camera_GlobalShutterThermal_USB_FreeRTOS` takes `CAM_CARRIER` (default thermal).
+- `BSP_GetVersion` reports 0.2.0.
+
+### Verification
+
+- The compile gate and host tests pass. All 76 projects build from a clean export: 72 by default, plus the 4 restricted ones.
+
+### Known limitations
+
+- **B-CAMS-IMX:** the module's IMU answers at the board's own IMU address, so with it fitted the board's motion readings are unreliable.
+- **SD card:** the card and the radio cannot run together. Files are dated 2026-01-01 (no clock).
+
+## v0.1.0 (25 October 2026)
 
 First public release of the Neuro N6 board support package: drivers for every
 peripheral on the board (STM32N657I0H3Q, Cortex-M55 with the Neural-ART NPU),
-the first-stage boot loader's source, and 35 examples. Plain C,
+the first-stage bootloader's source, and 35 examples. Plain C,
 `int32_t BSP_*` functions returning `neuron6_errno.h` codes, bare metal or
 FreeRTOS.
 
 ### Core
 
 - Board identity, RGB LED and user button.
-- USB console with `printf`; the 1200-baud touch enters the boot loader.
-- Watchdog with an early warning, which the examples route to the boot loader.
+- USB console with `printf`; the 1200-baud touch enters the bootloader.
+- Watchdog with an early warning, which the examples route to the bootloader.
 - I2C1, I2C2 and SPI2, with weak lock hooks for RTOS use.
 - Header I/O: digital, EXTI, pulse measurement and shift register; unrouted pins are refused.
 - ADC1 and ADC2, scaled against the measured supply.
@@ -50,9 +82,9 @@ accepted only within 1%. Mute is the amplifier's shutdown pin.
 - **NPU:** the BSP prepares the accelerator; ST Edge AI's runtime runs the networks.
 - **Security:** see `SECURITY.md`. Images are checked by CRC, not signed, and there is no network update path.
 
-### Boot loader
+### Bootloader
 
-`FSBL/` holds the v2.6.2 boot loader that boards ship with, and its image. It
+`FSBL/` holds the v2.6.2 bootloader that boards ship with, and its image. It
 owns the clock tree and the external memories, offers DFU over USB, and boots
 one of two slots, rolling back an update that does not confirm itself. Its
 contract with the BSP, and its known findings, are in `docs/BOOT-CONTRACT.md`.
@@ -78,28 +110,17 @@ contract with the BSP, and its known findings, are in `docs/BOOT-CONTRACT.md`.
 
 - Every module builds clean under `-Wall -Wextra -Werror`, in both security states.
 - All 72 projects build from a clean export: 68 by default, plus the 4 restricted ones.
-- **On hardware:**
-  - the board, watchdog, console, buses, sensors, analogue, header pins, PWM and audio;
-  - all seven OV5640 modes, the JPEG encoder, USB streaming and USB video;
-  - the NPU, and the TFT-W panel;
-  - Wi-Fi in both modes, WPA3 on the access point, and TLS;
-  - BLE in all four roles, with every pairing method;
-  - FreeRTOS;
-  - the boot loader across resets and staged updates.
-- The VD66GY and VD65G4 each stream VGA at 60 fps.
-- The YOLOv8 pose example runs at 15 inferences and 30 fps. Its day-long soak and restart paths are untested.
 
 ### Known limitations
 
 - No autofocus (fixed-focus modules), and no DMA2D in the LCD fills.
 - **BLE:** bonds are kept in RAM, and the HCI link runs at 115200 baud.
 - **TLS:** the certificate is new at each start, so clients pin it. There is no revocation check, and no TLS 1.3 resumption.
-- **Wi-Fi throughput** is about 2.4 MB/s, limited by the EMC-tested 8.163 MHz SDIO clock. Larger frames are paced by the link.
-- **WPA3:** no SAE hash-to-element, and station mode on a WPA3 network is untested.
+- **Wi-Fi throughput** is about 2.4 MB/s, limited by the 8.163 MHz SDIO clock. Larger frames are paced by the link.
+- **WPA3:** no SAE hash-to-element.
 - **Global-shutter sensors** start once per power cycle (no reset line).
-- **Ranging:** the grid's distances have not been checked against known targets.
 - **Shared pin:** PD3 is both the thermal camera's power line and the BLE link's flow control (`docs/PART-VARIANT.md`).
-- No XSPI or clock module; the boot loader owns both.
+- No XSPI or clock module; the bootloader owns both.
 
 ### Licensing
 

@@ -1693,8 +1693,8 @@ void BSP_WDG_EWI_Callback(void)
 }
 
 /**
-  * @brief  The external memories are not cacheable: the camera and the
-  *         encoder write them behind its back.
+  * @brief  PSRAM, .noncacheable and .axisram_nc are not cacheable: the camera
+  *         and the encoder write them by DMA.
   */
 static void mpu_config(void)
 {
@@ -1749,7 +1749,7 @@ int main(void)
 
   HAL_Init();
 
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
 
   /* The run LED: purple. */
@@ -1806,7 +1806,7 @@ int main(void)
 }
 
 /**
-  * @brief  Nothing to spin for: leave the board where it can be reflashed.
+  * @brief  Return to the bootloader, where the board can be reflashed.
   */
 void Error_Handler(void)
 {

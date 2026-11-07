@@ -1,4 +1,4 @@
-/* The boot loader's USB descriptors, FSBL/Core/Src/usb_descriptors.c, built
+/* The bootloader's USB descriptors, FSBL/Core/Src/usb_descriptors.c, built
  * for a PC against the loader's own TinyUSB headers: what it answers a host
  * that asks for each of them. No USB is involved; run.sh builds and runs it.
  *

@@ -3,7 +3,7 @@
  * @file    maya_w4_txpower.h
  * @brief   Regulatory TX-power cap for the MAYA-W476 (IW610), 2.4 GHz.
  *
- * REGULATORY: EMC-tested at 8 dBm conducted (~9.6 dBm EIRP with the 1.56 dBi
+ * The cap is 8 dBm conducted (~9.6 dBm EIRP with the 1.56 dBi
  * antenna; EN 300 328 and FCC 15.247 allow 20 dBm EIRP). Applied at every
  * bring-up with no API to raise it (MAYA-W4 System Integration Manual 7.1.2,
  * FCC KDB 594280).
@@ -25,8 +25,7 @@
 extern "C" {
 #endif
 
-/** Conducted TX power cap, dBm. Not a tuning knob: changing it voids the EMC
- *  tests. */
+/** Conducted TX power cap, dBm. Not a tuning knob. */
 #define MAYA_W4_TX_POWER_DBM   8u
 
 /**

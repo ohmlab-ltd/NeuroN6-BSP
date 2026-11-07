@@ -38,6 +38,12 @@ $CC -std=gnu11 -Wall -Ifake_thermal -I$REPO -I$REPO/Components/lsm6dsl -I$REPO/C
     $REPO/Components/mmc5603nj/mmc5603nj.c -o "$OUT/test_motion"
 $CC -std=c11 -Wall -Wextra -Ifake_bt -I$REPO test_bt_txpower.c $REPO/neuron6_bt.c \
     -o "$OUT/test_bt_txpower"
+$CC -std=c11 -Wall -Wextra -I$REPO test_camera_ae.c $REPO/neuron6_camera_ae.c -lm \
+    -o "$OUT/test_camera_ae"
+$CC -std=c11 -Wall -Wextra -I$REPO test_camera_awb.c $REPO/neuron6_camera_awb.c -lm \
+    -o "$OUT/test_camera_awb"
+$CC -std=c11 -Wall -Wextra -I$REPO/Components/vl53l5cx test_vl53l5cx_platform.c \
+    $REPO/Components/vl53l5cx/platform.c -o "$OUT/test_vl53l5cx_platform"
 "$OUT/test_asset"
 "$OUT/test_sha256"
 "$OUT/test_vospi"
@@ -48,3 +54,6 @@ $CC -std=c11 -Wall -Wextra -Ifake_bt -I$REPO test_bt_txpower.c $REPO/neuron6_bt.
 "$OUT/test_motion"
 "$OUT/test_meta_box"
 "$OUT/test_bt_txpower"
+"$OUT/test_camera_ae"
+"$OUT/test_camera_awb"
+"$OUT/test_vl53l5cx_platform"

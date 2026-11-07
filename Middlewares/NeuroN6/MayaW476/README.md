@@ -71,17 +71,16 @@ address.
 
 - **WPA3 uses hunting and pecking only.** With hash-to-element offered a
   Windows PC could not associate, so a network that insists on it is not
-  joined. A station on a WPA3 access point is untested.
+  joined.
 - **A client can stall in its handshake.** The firmware sometimes accepts an
   association and never runs the four-way handshake. The supervisor sends away
   a client still in its handshake 3 s after joining (`keep_softap_clients`),
   and it joins again; the host server's queue of two keeps a half-open
-  connection from blocking the next host. Tested: a Windows PC reached the
-  host server on 44 joins of 44.
+  connection from blocking the next host.
 
-## Regulatory settings
+## Radio settings
 
-The wireless build was EMC-tested with these settings. None is a tuning knob:
+None is a tuning knob:
 
 - **2.4 GHz only.** `CONFIG_5GHz_SUPPORT=0` must reach every file that
   includes the driver's headers, because it changes structure layouts.

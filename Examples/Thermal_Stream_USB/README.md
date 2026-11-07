@@ -59,13 +59,12 @@ to announce the stream. Status lines go to the console and, as
 bash harness/examples/cubebuild.sh Thermal_Stream_USB     # Appli and FSBL, from clean, headless
 ```
 
-`Appli` is the application, `FSBL` the boot loader. The project is the JPEG
+`Appli` is the application, `FSBL` the bootloader. The project is the JPEG
 stream's, with the thermal module in place of the camera and the encoder.
 
 ## Status
 
-Tested on a board with a Lepton 3.1R on the thermal carrier: 8.8 frames a
-second, none dropped with a reader attached. Until the camera's first
+The Lepton 3.1R sends 8.8 frames a second. Until the camera's first
 flat-field correction, a few seconds in, its readings run about 8 C high.
 
 The console line once a second gives the frames arrived, sent, met the link

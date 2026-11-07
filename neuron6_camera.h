@@ -40,7 +40,7 @@ extern "C" {
  * which data lane. */
 /** @brief Data lanes straight through. */
 #define BSP_CAMERA_CARRIER_STANDARD     0U
-/** @brief Display carrier: the data pair is crossed. */
+/** @brief Data pair crossed: the TFT-W display carrier and the NeuroVision ST cam carrier. */
 #define BSP_CAMERA_CARRIER_INVERTED     1U
 
 /** @brief Carrier used until BSP_CAMERA_SetCarrier; override in neuron6_conf.h. */
@@ -50,7 +50,7 @@ extern "C" {
 
 /* Pipes; the values are the DCMIPP pipe indices. */
 #define BSP_CAMERA_PIPE_DUMP            DCMIPP_PIPE0  /*!< RGB565 full frame.   */
-#define BSP_CAMERA_PIPE_MAIN            DCMIPP_PIPE1  /*!< YUV422 full frame.   */
+#define BSP_CAMERA_PIPE_MAIN            DCMIPP_PIPE1  /*!< YUV, crop/resize.    */
 #define BSP_CAMERA_PIPE_AUX             DCMIPP_PIPE2  /*!< RGB888, crop/resize. */
 #define BSP_CAMERA_PIPES_NBR            3U
 /** @brief Error-callback pipe for a fault that is not pipe specific. */
@@ -76,10 +76,12 @@ extern "C" {
 /* Sensor output format; a sensor accepts only the one its descriptor names. */
 #define BSP_CAMERA_PF_RGB565            OV5640_RGB565 /*!< Colour, ready to use. */
 #define BSP_CAMERA_PF_RAW8              0x10U         /*!< Raw Bayer, needs demosaicing. */
+#define BSP_CAMERA_PF_RAW10             0x11U         /*!< Raw Bayer, 10 bits. */
 
 /* CSI-2 data types; they follow from the sensor descriptor, not the caller. */
 #define BSP_CAMERA_CSI_DT_RGB565        DCMIPP_DT_RGB565
 #define BSP_CAMERA_CSI_DT_RAW8          DCMIPP_DT_RAW8
+#define BSP_CAMERA_CSI_DT_RAW10         DCMIPP_DT_RAW10
 
 /* Pipe destination formats, each for its own pipe. The planar ones (MAIN) start through
  * their own entry points, not BSP_CAMERA_Start. */
@@ -89,6 +91,7 @@ extern "C" {
 #define BSP_CAMERA_PIPE_PF_RAW8         0x03U /*!< 8 bpp Bayer (raw sensor), DUMP only. */
 #define BSP_CAMERA_PIPE_PF_YUV420_SP    0x04U /*!< 12 bpp NV12 (two planes), MAIN only. */
 #define BSP_CAMERA_PIPE_PF_YUV420_FP    0x05U /*!< 12 bpp, three planes, MAIN only. */
+#define BSP_CAMERA_PIPE_PF_RAW10        0x06U /*!< 16 bpp Bayer (10-bit sensor), DUMP only. */
 
 #define BSP_CAMERA_MIRRORFLIP_NONE      OV5640_MIRROR_FLIP_NONE
 #define BSP_CAMERA_MIRRORFLIP_FLIP      OV5640_FLIP
@@ -180,7 +183,7 @@ typedef struct
   uint32_t PixelFormat; /*!< Destination format, a BSP_CAMERA_PIPE_PF_* value.  */
   uint32_t Width;       /*!< Destination width in pixels.                       */
   uint32_t Height;      /*!< Destination height in pixels.                      */
-  uint32_t CropEnable;  /*!< Non-zero to apply the crop rectangle. AUX only.    */
+  uint32_t CropEnable;  /*!< Non-zero to apply the crop rectangle; MAIN, AUX.   */
   uint32_t CropX;       /*!< Crop origin, pixels from the left edge.            */
   uint32_t CropY;       /*!< Crop origin, pixels from the top edge.             */
   uint32_t CropWidth;   /*!< Crop width in pixels.                              */
@@ -396,6 +399,22 @@ int32_t BSP_CAMERA_SetIspColorConversion(uint32_t Instance, uint32_t Pipe,
 
 /** @brief Fixed-curve gamma on or off, on MAIN or AUX (the one ISP stage AUX has). */
 int32_t BSP_CAMERA_SetIspGamma(uint32_t Instance, uint32_t Pipe, uint32_t Enable);
+
+/** @brief Average one component over the whole sensor frame on MAIN, for exposure or white
+  * balance: Source is a DCMIPP_STAT_EXT_SOURCE_* value. Call after ConfigPipe. */
+int32_t BSP_CAMERA_SetIspStatistics(uint32_t Instance, uint32_t Pipe, uint32_t Source);
+
+/** @brief The last frame's average, 0 to 255 (the component's top 8 bits);
+  * BSP_ERROR_NO_INIT before BSP_CAMERA_SetIspStatistics. */
+int32_t BSP_CAMERA_GetIspStatistics(uint32_t Instance, uint32_t Pipe, uint32_t *pAverage);
+
+/** @brief As BSP_CAMERA_SetIspStatistics on one of the pipe's three units (1 to 3), for
+  * several components at once: exposure on one, white balance on others. Unit 1 is the
+  * one the calls above use. A new source shows in the averages two frames later. */
+int32_t BSP_CAMERA_SetIspStatisticsUnit(uint32_t Instance, uint32_t Pipe, uint32_t Unit, uint32_t Source);
+
+/** @brief As BSP_CAMERA_GetIspStatistics for one unit. */
+int32_t BSP_CAMERA_GetIspStatisticsUnit(uint32_t Instance, uint32_t Pipe, uint32_t Unit, uint32_t *pAverage);
 
 /** @brief Every EventLines lines (BSP_CAMERA_ConfigLineBuffer); interrupt context. */
 void BSP_CAMERA_LineEventCallback(uint32_t Instance, uint32_t Pipe);

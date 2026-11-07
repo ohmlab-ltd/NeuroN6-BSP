@@ -33,7 +33,3 @@ services needs a host stack (see `Examples/BlePeripheral_FreeRTOS`).
 
 The radio's firmware must be in external flash at `0x91E00000`, as for the
 Wi-Fi examples (`Camera_Nia416Stream_WiFi_FreeRTOS/README.md`).
-
-Tested on a board with the OV5640-W carrier: a PC's BLE adapter
-(`harness/bench/n6radio.cs scan --name Neuro-N6`) saw the beacon,
-non-connectable, with manufacturer data `ffff:4e36nnnn` counting once a second.

@@ -654,7 +654,7 @@ int main(void)
   /* USER CODE END Init */
 
   /* USER CODE BEGIN SysInit */
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
   /* USER CODE END SysInit */
 

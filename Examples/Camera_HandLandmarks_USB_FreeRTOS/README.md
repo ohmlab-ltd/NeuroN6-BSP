@@ -107,5 +107,5 @@ examples use an Ultralytics model under **AGPL-3.0**, which does place
 obligations on a distributed product; for something you intend to ship, start
 from this example or the palm detector.
 
-Tested on a board with the OV5640 at XGA: 15 inferences a second, 26 ms each
-in either stage, alongside the 30 fps stream.
+At XGA it runs 15 inferences a second, 26 ms each in either stage, alongside
+the 30 fps stream.

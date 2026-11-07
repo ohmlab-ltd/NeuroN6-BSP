@@ -734,21 +734,27 @@ HAL_StatusTypeDef HAL_DCMIPP_CSI_SetConfig(const DCMIPP_HandleTypeDef *hdcmipp,
   /* set reg @0xe3 & reg @0xe2 value DLL target oscilation freq */
   /* Based on the table page 77, osc_freq_target */
   DCMIPP_CSI_WritePHYReg(csi_instance, 0x00, 0xe3, SNPS_Freqs[pCSI_Config->PHYBitrate].osc_freq_target >> 8);
-  /* BUGFIX (2026-05-31): the low byte must go to test reg 0xe2, NOT 0xe3. As
-   * shipped this wrote BOTH bytes to 0xe3: the low byte clobbered the high byte
-   * and 0xe2 was never set, so the D-PHY DLL target oscillation frequency was
-   * corrupted (~0xC00 instead of 0x1CC=460). That mis-calibrates the receiver
-   * delay line that sets the HS sampling point: tolerable at WVGA's wide eye,
-   * fatal at XGA's 768 Mbps (HS bursts arrive but SYNCDLxF never asserts). The
-   * comment itself says "@0xe3 & @0xe2"; DWC convention is 0xe3=[11:8], 0xe2=[7:0]. */
+  /* BUGFIX: the low byte goes to 0xe2 (0xe3 holds bits [11:8], 0xe2 bits [7:0]). Without
+   * it the DLL target is wrong, and lanes at 768 Mbps and above never synchronise. */
   DCMIPP_CSI_WritePHYReg(csi_instance, 0x00, 0xe2, SNPS_Freqs[pCSI_Config->PHYBitrate].osc_freq_target & 0xFFU);
+
+  /* BUGFIX: one lane on physical lane 1. Lane 1 runs only with lane 0 enabled, so both are
+   * enabled and lane 0 is set to transmit (DLD clear; DLD set is receive, the reverse of
+   * RM0486), so it ignores its unconnected pins. */
+  const uint32_t lane1_only = ((pCSI_Config->NumberOfLanes == DCMIPP_CSI_ONE_DATA_LANE) &&
+                               (pCSI_Config->DataLaneMapping == DCMIPP_CSI_INVERTED_DATA_LANES)) ? 1U : 0U;
 
   /* set basedir_0 to RX DLD 0 RX, 1 TX. Synopsys 1 RX 0 TX  + freq range */
   WRITE_REG(csi_instance-> PFCR, (0x28U << CSI_PFCR_CCFR_Pos) |
-            (SNPS_Freqs[pCSI_Config->PHYBitrate].hsfreqrange << CSI_PFCR_HSFR_Pos) | CSI_PFCR_DLD);
+            (SNPS_Freqs[pCSI_Config->PHYBitrate].hsfreqrange << CSI_PFCR_HSFR_Pos) |
+            ((lane1_only != 0U) ? 0U : CSI_PFCR_DLD));
 
   /* Enable the D-PHY_RX lane(s) etc */
-  if (pCSI_Config->NumberOfLanes == DCMIPP_CSI_ONE_DATA_LANE)
+  if (lane1_only != 0U)
+  {
+    WRITE_REG(csi_instance->PCR, CSI_PCR_DL0EN | CSI_PCR_DL1EN | CSI_PCR_CLEN | CSI_PCR_PWRDOWN);
+  }
+  else if (pCSI_Config->NumberOfLanes == DCMIPP_CSI_ONE_DATA_LANE)
   {
     WRITE_REG(csi_instance->PCR, CSI_PCR_DL0EN | CSI_PCR_CLEN | CSI_PCR_PWRDOWN);
   }

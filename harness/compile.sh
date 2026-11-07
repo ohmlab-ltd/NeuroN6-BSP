@@ -32,6 +32,7 @@ trap 'rm -f "$GATE_OBJ"; rm -rf "$GATE_CONF"' EXIT
 # source/jpeg/basetype.h redefines size_t (this repository drops that copy).
 INC="-I. -Iharness -IComponents/ov5640 -IComponents/lsm6dsl -IComponents/mmc5603nj \
      -IComponents/lepton -IComponents/vd6g -IComponents/vd55g1 -IComponents/vl53l1cb \
+     -IComponents/imx335 -IComponents/vl53l5cx -IMiddlewares/FatFs/source \
      -IUtilities/usb \
      -IMiddlewares/tinyusb \
      -IComponents/venc/VideoEncoder/inc -IComponents/venc/VideoEncoder/source/jpeg \
@@ -112,7 +113,9 @@ for state in nonsecure secure; do
 
   # find, not a fixed-depth glob, which would silently skip deeper files (the
   # encoder core nests five levels deep).
-  for f in neuron6*.c $(find Components -name '*.c' | sort); do
+  for f in neuron6*.c $(find Components -name '*.c' | sort) \
+           Middlewares/FatFs/source/ff.c Middlewares/FatFs/source/ffunicode.c \
+           Middlewares/NeuroN6/FatFsSd/*.c; do
     [ -f "$f" ] || continue
 
     case "$f" in
@@ -125,7 +128,9 @@ for state in nonsecure secure; do
     # its warnings without failing, so it can stay unmodified against upstream.
     warn="$WARN"
     case "$f" in
-      Components/ov5640/*|Components/vd6g/*|Components/vd55g1/*|Components/venc/*) warn="$WARN_VENDORED";;
+      Components/ov5640/*|Components/vd6g/*|Components/vd55g1/*|Components/venc/*|Components/imx335/*) warn="$WARN_VENDORED";;
+      Components/vl53l5cx/vl53l5cx_api.c) warn="$WARN_VENDORED";;
+      Middlewares/FatFs/*) warn="$WARN_VENDORED";;
     esac
 
     if $CC -c -o "$GATE_OBJ" -std=c11 $warn $FLAGS $extra $INC "$f"; then

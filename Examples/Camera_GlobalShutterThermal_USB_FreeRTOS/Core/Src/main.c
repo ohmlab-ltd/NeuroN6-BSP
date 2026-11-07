@@ -115,14 +115,27 @@ typedef enum
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* The VD66GY: mode, rate, carrier, and its exposure target (0 to 100). Its
- * exposure loop meters the raw picture, before white balance and gamma
- * brighten it, so a middle target overexposes. The thermal carrier crosses
- * the two data lanes; a wrong setting gives no error, only no frames. */
+/* The VD66GY: mode, rate, and its exposure target (0 to 100). Its exposure
+ * loop meters the raw picture, before white balance and gamma brighten it, so
+ * a middle target overexposes. */
 #define CAM_RESOLUTION         BSP_CAMERA_VD66GY_R640x480
 #define CAM_FRAME_RATE          60U
-#define CAM_CARRIER             BSP_CAMERA_CARRIER_INVERTED
 #define CAM_EXPOSURE_TARGET     25
+
+/* The carrier: CAM_CARRIER_THERMAL or CAM_CARRIER_ST_CAM. */
+#define CAM_CARRIER_ST_CAM      0
+#define CAM_CARRIER_THERMAL     1
+#define CAM_CARRIER             CAM_CARRIER_THERMAL
+
+#if (CAM_CARRIER != CAM_CARRIER_ST_CAM) && (CAM_CARRIER != CAM_CARRIER_THERMAL)
+#error "CAM_CARRIER must be CAM_CARRIER_ST_CAM or CAM_CARRIER_THERMAL"
+#endif
+
+/* The ST cam carrier crosses the two data lanes; the thermal carrier wires
+ * them straight. A wrong mapping gives no error, only no frames. */
+#define CAM_LANES               ((CAM_CARRIER == CAM_CARRIER_ST_CAM) ? BSP_CAMERA_CARRIER_INVERTED \
+                                                                     : BSP_CAMERA_CARRIER_STANDARD)
+#define CAM_CARRIER_NAME        ((CAM_CARRIER == CAM_CARRIER_ST_CAM) ? "ST cam" : "thermal")
 
 /* The band the camera writes and the encoder reads, sized for VGA. */
 #define CAM_BAND_BYTES          81920U
@@ -512,7 +525,7 @@ static int32_t camera_init(void)
 
   CameraStep = "sensor choice";
   status = BSP_CAMERA_VD66GY_Register();
-  if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_SetCarrier(CAM_CARRIER); }
+  if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_SetCarrier(CAM_LANES); }
   if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_VD66GY_SetFrameRate(CAM_FRAME_RATE); }
   if (status != BSP_ERROR_NONE) { return status; }
 
@@ -1286,10 +1299,10 @@ static void say_start(void)
 {
   if (CameraStatus == BSP_ERROR_NONE)
   {
-    say("[camera] VD66GY %lux%lu at %lu frames a second, %s lanes",
+    say("[camera] VD66GY %lux%lu at %lu frames a second, %s carrier (%s lanes)",
         (unsigned long)StreamBand.CodedWidth, (unsigned long)StreamBand.CodedHeight,
-        (unsigned long)CAM_FRAME_RATE,
-        (CAM_CARRIER == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight");
+        (unsigned long)CAM_FRAME_RATE, CAM_CARRIER_NAME,
+        (CAM_LANES == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight");
   }
   else
   {
@@ -1430,7 +1443,7 @@ int main(void)
   /* USER CODE END Init */
 
   /* USER CODE BEGIN SysInit */
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
   /* USER CODE END SysInit */
 

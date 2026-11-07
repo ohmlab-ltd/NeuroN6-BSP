@@ -65,8 +65,5 @@ It does not define `DEBUG`: NimBLE names its log functions after their levels,
 so a `DEBUG` macro breaks its build, and the port's configuration stops with
 an `#error` saying so.
 
-`Middlewares/NeuroN6/BleHost/README.md` describes the port, its tasks, its
-limits and the test results.
-
-Tested on a board with the TFT-W carrier against a Windows PC's BLE adapter:
-18 of 18 checks passed.
+`Middlewares/NeuroN6/BleHost/README.md` describes the port, its tasks and its
+limits.

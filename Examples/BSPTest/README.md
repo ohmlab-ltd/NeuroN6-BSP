@@ -19,15 +19,14 @@ host                                  board
   early is lost, and a `b` in it (as in `bt`) sends the board to the
   bootloader.
 - Each command prints any number of `INFO` lines, one verdict line with the
-  numbers that matter, then `END <cmd>`, so the results in
-  `harness/board-tests/` read on their own.
+  numbers that matter, then `END <cmd>`, so a saved log reads on its own.
 
 ## Commands in the default run
 
 | command | checks |
 |---|---|
 | `bkp` | breadcrumbs from the previous image: backup registers 4..7 and the reset flags. Register 7's top byte: 0xFD the watchdog's early warning; 0xF1 to 0xF8 a fault handler, the kernel or a non-maskable interrupt (layout in `Common/Src/stm32n6xx_it.c`); 0xFB an interrupt with no handler |
-| `id`, `clk` | board name; the clock tree the boot loader left |
+| `id`, `clk` | board name; the clock tree the bootloader left |
 | `led`, `btn` | each LED lit and read back; button state |
 | `i2c` | `BSP_I2C1_IsReady` at every possible address, 7- and 8-bit forms |
 | `imu` | LSM6DSL: about 1 g at rest, gyro, temperature |
@@ -66,14 +65,17 @@ host                                  board
 | `jpegtorn` | after the camera is stopped mid-frame at ten points and the encoder resynchronised, the next frame is not reported torn |
 | `lcd` | 800x480 panel: pixels, row pitch, clipping, both layers, scan line |
 | `lcdbmp` | 16-, 24- and 32-bit bitmaps into RGB565, ARGB8888 and ARGB4444 layers, pixel for pixel |
-| `reg16` | `BSP_I2C_ReadReg16` three ways, an absent device refused, the SPI2 clock |
+| `reg16` | `BSP_I2C1_ReadReg16` three ways, an absent device refused, the SPI2 clock |
 | `audset` | playback at half the native rate; capture at 48 kHz and 8 kHz; re-init after the slow rate |
-| `wifi` | MAYA-W476 over SDIO: power, CMD0/5/3/7, CCCR, firmware presence |
-| `bt` | HCI over USART6. Always `SKIP` here: only the MAYA-W476 library, under FreeRTOS, loads the controller's firmware. BLE is tested by `Examples/BleBeacon_FreeRTOS` and `Examples/WiFiApi_FreeRTOS`'s `bt` |
 | `tof` | ranging sensor identity, up to ten full-field measurements; skips without the sensor |
 | `tofgrid` | ranging regions: three-wide refused, 8 x 8 ranged, a 16-zone sweep within 6 s; skips without the sensor |
 | `thermal` | Lepton I2C probe only (power pins not driven); skips when no Lepton is fitted |
 | `vospi` | the Lepton video parser on packets built on the board: a whole frame parses; a stuck line, bad packet IDs and split segments are rejected |
+| `i2cscan` | every 8-bit address that answers on I2C1 |
+| `bcams` | B-CAMS-IMX: the IMX335's identity and a register written, read back and restored; the 0x6A IMUs at 0xD4 and 0xD6; the VL53L5CX at 0x52. Skips without the module |
+| `bcamstof` | the module's VL53L5CX through `neuron6_ranging_vl53l5cx`: the firmware load, 4 x 4 zones at 60 Hz and 8 x 8 at 15 Hz for 2 s each, the read time, the last 8 x 8 grid, and TOF_INT (PA11) by its effect, one short pulse per result. Skips without the module |
+| `bcamslink` | the IMX335's test pattern on the dump pipe through each lane mapping: which captures, the frame period, the bytes a frame writes |
+| `bcamspipe` | the sensor's line period on the cycle counter, then 640 x 480 from MAIN with the exposure loop running for 4 s: at least 100 of the 120 frames |
 
 ## Commands not in the default run
 
@@ -89,11 +91,18 @@ host                                  board
 | `vencprobe`, `vencrecover`, `vencrst`, `camreg`, `camlive` | encoder probe and reset sequences; sensor and CSI registers, idle and streaming |
 | `magdbg`, `magloop` | the magnetometer by hand with every register shown; `mag` twenty times with a post-mortem |
 | `adcrif` | A0..A5 with the ADC12 security stamp on, off and on: the analogue pads boot secure and do not route to a non-secure converter. It briefly clears a security attribute |
+| `wifi` | MAYA-W476 over SDIO: power, CMD0/5/3/7, CCCR, firmware presence |
+| `bt` | HCI over USART6. Always `SKIP` here: only the MAYA-W476 library, under FreeRTOS, loads the controller's firmware. BLE runs in `Examples/BleBeacon_FreeRTOS` and `Examples/WiFiApi_FreeRTOS`'s `bt` |
+| `boardregs` | the clocks, the HSI measured against the crystal, and the clock, power, XSPI and CSI registers (camera started), for comparing two boards |
+| `bcamspins` | the B-CAMS-IMX adapter's control lines, each by its effect: EN_MODULE, XCLR, TOF_LPn, TOF_INT, the IMU interrupts and card detect. Skips without the module |
+| `sd` | SD card identity, then its last 1 MB saved, written, read back direct, unaligned, into PSRAM and as one block, timed, and restored. Writes the card |
+| `sdfat` | a 256 KB file written, read back unaligned, compared and deleted through FatFs. Writes the card |
+| `vencspeed` | the encoder alone: 2592-wide strips from on-chip RAM, the time a macroblock row takes (a line-buffer stream's rows must arrive no faster) |
 
 ## Not covered
 
-- `neuron6_camera_vd66gy` and `neuron6_camera_vd65g4` have no command: this
-  board carries the OV5640.
+- `neuron6_camera_vd66gy` and `neuron6_camera_vd65g4` have no command; their
+  USB camera examples test them.
 - `thermal` skips when no Lepton is fitted.
 
 ## Never off the bus
@@ -124,7 +133,7 @@ build from the CubeIDE projects under `STM32CubeIDE/`:
   BSP uses.
 - `Appli_FreeRTOS`: `Appli` plus what `Utilities/freertos/README.md` lists
   (kernel, `neuron6_rtos.c`, the TIM16 time base, `BSP_USE_FREERTOS=1`).
-- `FSBL`: the boot loader, as in every example.
+- `FSBL`: the bootloader, as in every example.
 
 Import them into STM32CubeIDE 2.2.0 and build `Debug`, or build all three
 with `bash harness/examples/cubebuild.sh BSPTest`. `harness/compile.sh` also

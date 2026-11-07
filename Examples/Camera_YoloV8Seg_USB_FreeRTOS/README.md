@@ -109,4 +109,4 @@ largest frame). The network's crop follows the mode.
 QVGA cannot feed the network: the auxiliary pipe only reduces, and 240 lines
 do not make a 256-pixel square.
 
-Tested on a board with the TFT-W carrier: each inference takes 36 to 40 ms.
+Each inference takes 36 to 40 ms.

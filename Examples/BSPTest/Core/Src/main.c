@@ -43,6 +43,7 @@
 #include "neuron6_npu.h"
 #include "neuron6_motion_sensor.h"
 #include "neuron6_ranging_sensor.h"
+#include "neuron6_ranging_vl53l5cx.h"
 #include "neuron6_audio.h"
 #include "neuron6_camera.h"
 #include "neuron6_lcd.h"
@@ -50,6 +51,9 @@
 #include "stm32n6xx_ll_venc.h"
 #include "neuron6_wifi.h"
 #include "neuron6_bt.h"
+#include "neuron6_camera_imx335.h"
+#include "neuron6_sd.h"
+#include "ff.h"
 #if defined(BSP_USE_FREERTOS) && (BSP_USE_FREERTOS == 1)
 #include "neuron6_rtos.h"
 #include "timers.h"     /* the rtos command's one-shot timer */
@@ -2933,7 +2937,7 @@ static void cmd_i2ccheck(void)
 
 /* An update trigger armed with nothing staged, then an upload: `otacancel`
  * leaves through BSP_COM_RebootToBootloader as a host does, `otakeep` sets
- * the boot loader's DFU key itself. `otacheck`, in the next image, checks the
+ * the bootloader's DFU key itself. `otacheck`, in the next image, checks the
  * trigger was cancelled; a tried apply stops at the missing header, flash
  * untouched. Layout: Middlewares/NeuroN6/N6OTA/n6_ota_layout.h. */
 #define OTA_TRIGGER_BKPR      20U
@@ -2966,7 +2970,7 @@ static void cmd_otacancel(void)
 static void cmd_otakeep(void)
 {
   if (ota_arm("otakeep") == 0) { return; }
-  (&TAMP->BKP0R)[2] = 0xF4CDF4U;          /* the boot loader's DFU key */
+  (&TAMP->BKP0R)[2] = 0xF4CDF4U;          /* the bootloader's DFU key */
   (&TAMP->BKP0R)[1] = 0U;
   __DSB();
   NVIC_SystemReset();
@@ -3234,7 +3238,8 @@ void BSP_CAMERA_FrameEventCallback(uint32_t Instance, uint32_t Pipe)
   if ((Pipe == BSP_CAMERA_PIPE_MAIN) && (VencAnchor != 0U)) { (void)BSP_VENC_SourceFrameEvent(0); }
 }
 void BSP_CAMERA_ErrorCallback(uint32_t Instance, uint32_t Pipe)      { (void)Instance; (void)Pipe; CamErrors++; }
-void BSP_CAMERA_LineEventCallback(uint32_t Instance, uint32_t Pipe)  { (void)Instance; if (Pipe == BSP_CAMERA_PIPE_MAIN) { CamLines++; (void)BSP_VENC_SourceLineEvent(0); } }
+static void bcams_line_tick(void);
+void BSP_CAMERA_LineEventCallback(uint32_t Instance, uint32_t Pipe)  { (void)Instance; if (Pipe == BSP_CAMERA_PIPE_MAIN) { CamLines++; bcams_line_tick(); (void)BSP_VENC_SourceLineEvent(0); } }
 
 static int32_t cam_up(void)
 {
@@ -4999,6 +5004,915 @@ static void cmd_thermal(void)
   ok("thermal", "Lepton answers on the sensor bus (not driven further)");
 }
 
+/* B-CAMS-IMX adapter: ST's module on its flex connector (IMX335, IMU, time of
+ * flight) and its SD card. The module's commands skip when their part does not answer. */
+
+/* Every 8-bit address that answers on the sensor bus, to account for each. */
+static void cmd_i2cscan(void)
+{
+  char found[200] = "";
+  uint32_t n = 0U;
+
+  if (BSP_I2C1_Init() != BSP_ERROR_NONE) { fail("i2cscan", "I2C1 init"); return; }
+  for (uint32_t a = 0x08U; a <= 0x77U; a++)
+  {
+    if (BSP_I2C1_IsReady((uint16_t)(a << 1), 1U) == BSP_ERROR_NONE)
+    {
+      char s[6];
+      (void)snprintf(s, sizeof s, "%02lX ", (unsigned long)(a << 1));
+      strncat(found, s, sizeof found - strlen(found) - 1U);
+      n++;
+    }
+    if ((a & 0x0FU) == 0U) { svc(1U); }
+  }
+  (void)BSP_I2C1_DeInit();
+  if (n == 0U) { fail("i2cscan", "nothing answered on I2C1"); return; }
+  ok("i2cscan", "%lu answered (8-bit): %s", (unsigned long)n, found);
+}
+
+/* Line event times, for the sensor's line period: one per BCAMS_EVENT_LINES lines. */
+#define BCAMS_LINE_MARKS   32U
+static volatile uint8_t  BcamsTiming;
+static volatile uint32_t BcamsMarks[BCAMS_LINE_MARKS], BcamsMarkCount;
+static void bcams_line_tick(void)
+{
+  if ((BcamsTiming != 0U) && (BcamsMarkCount < BCAMS_LINE_MARKS)) { BcamsMarks[BcamsMarkCount++] = DWT->CYCCNT; }
+}
+
+/* Power the module up and read every device it carries. */
+static void cmd_bcams(void)
+{
+  const BSP_CAMERA_Sensor_t *was = BSP_CAMERA_GetSensor();
+  uint8_t  b = 0xFFU, saved = 0U, back = 0U, who[2] = {0U, 0U}, tof[2] = {0U, 0U}, page;
+  uint8_t  hmax[2] = {0U, 0U}, vmax[3] = {0U, 0U, 0U};
+  int32_t  r;
+  uint32_t imu = 0U, tof_ok = 0U;
+
+  r = BSP_CAMERA_IMX335_Register();
+  if (r != BSP_ERROR_NONE) { fail("bcams", "register %ld", (long)r); (void)BSP_CAMERA_RegisterSensor(was); return; }
+  (void)BSP_CAMERA_RegisterSensor(was);
+  if (BSP_I2C1_Init() != BSP_ERROR_NONE) { fail("bcams", "I2C1 init"); return; }
+
+  if (BSP_I2C1_IsReady(BSP_CAMERA_IMX335_I2C_ADDRESS, 3U) != BSP_ERROR_NONE)
+  {
+    (void)BSP_I2C1_DeInit();
+    skip("bcams", "nothing at 0x34: no module, or it has no supply or clock (EN_MODULE, CAM_CLK, XCLR)");
+    return;
+  }
+
+  /* Identity (0x00 from reset only, 0x33 once configured), then a write read back and
+   * restored: a bus that reads zeros passes the first. */
+  r = BSP_I2C1_ReadReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3912U, &b, 1U);
+  if (r == BSP_ERROR_NONE) { r = BSP_I2C1_ReadReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3030U, &saved, 1U); }
+  if (r == BSP_ERROR_NONE) { uint8_t t = saved ^ 0x5AU; r = BSP_I2C1_WriteReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3030U, &t, 1U); }
+  if (r == BSP_ERROR_NONE) { r = BSP_I2C1_ReadReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3030U, &back, 1U); }
+  (void)BSP_I2C1_WriteReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3030U, &saved, 1U);
+  (void)BSP_I2C1_ReadReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3034U, hmax, 2U);
+  (void)BSP_I2C1_ReadReg16(BSP_CAMERA_IMX335_I2C_ADDRESS, 0x3030U, vmax, 3U);
+  P("INFO IMX335 id 0x%02x (0x%02x expected), write test 0x%02x -> 0x%02x, HMAX %u, VMAX %lu\r\n",
+    (unsigned)b, (unsigned)BSP_CAMERA_IMX335_ID, (unsigned)(saved ^ 0x5AU), (unsigned)back,
+    (unsigned)(hmax[0] | (hmax[1] << 8)), (unsigned long)(vmax[0] | (vmax[1] << 8) | ((uint32_t)(vmax[2] & 0x0FU) << 16)));
+
+  /* The module's ISM330DLC and the board's LSM6DSL both answer 0x6A: count them. */
+  if (BSP_I2C1_ReadReg(0xD4U, 0x0FU, &who[0], 1U) == BSP_ERROR_NONE) { imu += (who[0] == 0x6AU) ? 1U : 0U; }
+  if (BSP_I2C1_ReadReg(0xD6U, 0x0FU, &who[1], 1U) == BSP_ERROR_NONE) { imu += (who[1] == 0x6AU) ? 1U : 0U; }
+  P("INFO WHO_AM_I at 0xD4 0x%02x, at 0xD6 0x%02x (0x6A: ISM330DLC or LSM6DSL)\r\n", (unsigned)who[0], (unsigned)who[1]);
+
+  /* VL53L5CX at 0x52 (the OV5640 carriers' VL53L1CB uses the same address): page 0 reads 0xF0 0x02. */
+  page = 0x00U;
+  if ((BSP_I2C1_WriteReg16(0x52U, 0x7FFFU, &page, 1U) == BSP_ERROR_NONE) &&
+      (BSP_I2C1_ReadReg16(0x52U, 0x0000U, &tof[0], 1U) == BSP_ERROR_NONE) &&
+      (BSP_I2C1_ReadReg16(0x52U, 0x0001U, &tof[1], 1U) == BSP_ERROR_NONE))
+  {
+    tof_ok = ((tof[0] == 0xF0U) && (tof[1] == 0x02U)) ? 1U : 0U;
+  }
+  page = 0x02U;
+  (void)BSP_I2C1_WriteReg16(0x52U, 0x7FFFU, &page, 1U);
+  P("INFO VL53L5CX at 0x52: 0x%02x 0x%02x (0xF0 0x02 expected)\r\n", (unsigned)tof[0], (unsigned)tof[1]);
+  (void)BSP_I2C1_DeInit();
+
+  if ((r != BSP_ERROR_NONE) || ((b != BSP_CAMERA_IMX335_ID) && (b != 0x33U)) || (back != (uint8_t)(saved ^ 0x5AU)))
+  { fail("bcams", "IMX335 at 0x34: id 0x%02x, write test %s (%ld)", (unsigned)b, (back == (uint8_t)(saved ^ 0x5AU)) ? "ok" : "lost", (long)r); return; }
+  ok("bcams", "IMX335 id 0x%02x (%s) and write test pass; 0x6A IMUs %lu; VL53L5CX %s", (unsigned)b,
+     (b == BSP_CAMERA_IMX335_ID) ? "from reset" : "configured", (unsigned long)imu, tof_ok ? "alive" : "not seen");
+}
+
+/* The B-CAMS-IMX adapter's control lines: EN_MODULE PA7,
+ * NRST_CAM PB11, TOF_LPn PA9, TOF_INT PA11, module IMU INT1 PA10 and INT2 PA8, SD card
+ * detect PD9 (low with a card). The board's own IMU interrupts are PE14 and PE15. */
+static void bcams_pin_out(GPIO_TypeDef *Port, uint16_t Pin, GPIO_PinState Level)
+{
+  GPIO_InitTypeDef g = {0};
+
+  HAL_GPIO_WritePin(Port, Pin, Level);
+  g.Pin = Pin; g.Mode = GPIO_MODE_OUTPUT_PP; g.Pull = GPIO_NOPULL; g.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Port, &g);
+}
+
+static void bcams_pin_in(GPIO_TypeDef *Port, uint16_t Pin, uint32_t Pull)
+{
+  GPIO_InitTypeDef g = {0};
+
+  g.Pin = Pin; g.Mode = GPIO_MODE_INPUT; g.Pull = Pull; g.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(Port, &g);
+}
+
+/* Rising edges on the module's and the board's IMU interrupt pins in 300 ms, with
+ * data-ready pulses (104 Hz) enabled on INT1 (accelerometer) and INT2 (gyroscope) of
+ * whatever answers at Addr. */
+static void bcams_imu_edges(uint16_t Addr, uint32_t pEdges[4])
+{
+  static const uint16_t pins[4] = { GPIO_PIN_10, GPIO_PIN_8, GPIO_PIN_14, GPIO_PIN_15 };
+  GPIO_TypeDef *const ports[4] = { GPIOA, GPIOA, GPIOE, GPIOE };
+  uint8_t  v, last[4], z = 0x00U;
+  uint32_t t0;
+
+  v = 0x80U; (void)BSP_I2C1_WriteReg(Addr, 0x0BU, &v, 1U);   /* DRDY_PULSED */
+  v = 0x40U; (void)BSP_I2C1_WriteReg(Addr, 0x10U, &v, 1U);   /* XL 104 Hz */
+  v = 0x40U; (void)BSP_I2C1_WriteReg(Addr, 0x11U, &v, 1U);   /* G 104 Hz */
+  v = 0x01U; (void)BSP_I2C1_WriteReg(Addr, 0x0DU, &v, 1U);   /* INT1: DRDY_XL */
+  v = 0x02U; (void)BSP_I2C1_WriteReg(Addr, 0x0EU, &v, 1U);   /* INT2: DRDY_G */
+
+  for (uint32_t i = 0U; i < 4U; i++) { pEdges[i] = 0U; last[i] = (uint8_t)HAL_GPIO_ReadPin(ports[i], pins[i]); }
+  t0 = HAL_GetTick();
+  while ((HAL_GetTick() - t0) < 300U)
+  {
+    for (uint32_t i = 0U; i < 4U; i++)
+    {
+      const uint8_t now = (uint8_t)HAL_GPIO_ReadPin(ports[i], pins[i]);
+      if ((now != 0U) && (last[i] == 0U)) { pEdges[i]++; }
+      last[i] = now;
+    }
+  }
+
+  (void)BSP_I2C1_WriteReg(Addr, 0x0DU, &z, 1U);
+  (void)BSP_I2C1_WriteReg(Addr, 0x0EU, &z, 1U);
+  (void)BSP_I2C1_WriteReg(Addr, 0x10U, &z, 1U);
+  (void)BSP_I2C1_WriteReg(Addr, 0x11U, &z, 1U);
+  (void)BSP_I2C1_WriteReg(Addr, 0x0BU, &z, 1U);
+  svc(1U);
+}
+
+/* Each control line checked by its effect: EN off silences the sensor, XCLR resets a
+ * register, LPn off silences the ToF, the IMU interrupts toggle, card detect reads. */
+static void cmd_bcamspins(void)
+{
+  const uint16_t cam = BSP_CAMERA_IMX335_I2C_ADDRESS;
+  uint8_t  vmax_lo = 0U, t = 0U, page, tof[2];
+  uint32_t en_off, en_on, xclr_held, xclr_reset, lpn_off, lpn_on, imu[2] = {0U, 0U};
+  uint32_t edges[2][4] = {{0U}}, tof_int, card;
+  uint32_t imu_en_off = 0U, tof_en_off;
+
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
+  if (BSP_I2C1_Init() != BSP_ERROR_NONE) { fail("bcamspins", "I2C1 init"); return; }
+  if (BSP_I2C1_IsReady(cam, 3U) != BSP_ERROR_NONE)
+  { (void)BSP_I2C1_DeInit(); skip("bcamspins", "nothing at 0x34: no B-CAMS-IMX module"); return; }
+
+  /* EN_MODULE (PA7) off with XCLR (PB11) held: the sensor loses its supply and clock. */
+  bcams_pin_out(GPIOB, GPIO_PIN_11, GPIO_PIN_RESET);
+  bcams_pin_out(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
+  svc(50U);
+  en_off = (BSP_I2C1_IsReady(cam, 2U) == BSP_ERROR_NONE) ? 1U : 0U;
+  for (uint16_t a = 0xD4U; a <= 0xD6U; a += 2U)
+  {
+    uint8_t w = 0U;
+    if ((BSP_I2C1_ReadReg(a, 0x0FU, &w, 1U) == BSP_ERROR_NONE) && (w == 0x6AU)) { imu_en_off++; }
+  }
+  tof_en_off = (BSP_I2C1_IsReady(0x52U, 2U) == BSP_ERROR_NONE) ? 1U : 0U;
+
+  /* EN on, XCLR still low: the sensor is held in reset. Then release it. */
+  bcams_pin_out(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
+  svc(20U);
+  xclr_held = (BSP_I2C1_IsReady(cam, 2U) == BSP_ERROR_NONE) ? 1U : 0U;
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
+  svc(20U);
+  en_on = (BSP_I2C1_IsReady(cam, 3U) == BSP_ERROR_NONE) ? 1U : 0U;
+
+  /* XCLR pulse: a written register returns to its reset value (VMAX low byte 0x94). */
+  t = 0x5AU;
+  (void)BSP_I2C1_WriteReg16(cam, 0x3030U, &t, 1U);
+  (void)BSP_I2C1_ReadReg16(cam, 0x3030U, &vmax_lo, 1U);
+  const uint8_t written = vmax_lo;
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_RESET);
+  svc(2U);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_11, GPIO_PIN_SET);
+  svc(20U);
+  vmax_lo = 0U;
+  (void)BSP_I2C1_ReadReg16(cam, 0x3030U, &vmax_lo, 1U);
+  xclr_reset = ((written == 0x5AU) && (vmax_lo != 0x5AU)) ? 1U : 0U;
+  P("INFO EN off: sensor %s, IMUs answering 0x6A %lu, ToF %s; EN on, XCLR low: sensor %s; released: %s\r\n",
+    en_off ? "answers" : "silent", (unsigned long)imu_en_off, tof_en_off ? "answers" : "silent",
+    xclr_held ? "answers" : "silent", en_on ? "answers" : "silent");
+  P("INFO XCLR pulse: VMAX low byte 0x%02x written, 0x%02x after reset\r\n", (unsigned)written, (unsigned)vmax_lo);
+
+  /* TOF_LPn (PA9): low disables the VL53L5CX's I2C. */
+  bcams_pin_out(GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
+  svc(10U);
+  lpn_off = (BSP_I2C1_IsReady(0x52U, 2U) == BSP_ERROR_NONE) ? 1U : 0U;
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
+  svc(10U);
+  page = 0x00U; tof[0] = tof[1] = 0U;
+  lpn_on = ((BSP_I2C1_WriteReg16(0x52U, 0x7FFFU, &page, 1U) == BSP_ERROR_NONE) &&
+            (BSP_I2C1_ReadReg16(0x52U, 0x0000U, &tof[0], 1U) == BSP_ERROR_NONE) &&
+            (BSP_I2C1_ReadReg16(0x52U, 0x0001U, &tof[1], 1U) == BSP_ERROR_NONE) &&
+            (tof[0] == 0xF0U) && (tof[1] == 0x02U)) ? 1U : 0U;
+  page = 0x02U;
+  (void)BSP_I2C1_WriteReg16(0x52U, 0x7FFFU, &page, 1U);
+
+  /* TOF_INT (PA11) idles high (open drain, nothing ranging). */
+  bcams_pin_in(GPIOA, GPIO_PIN_11, GPIO_PULLUP);
+  svc(2U);
+  tof_int = (uint32_t)HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11);
+
+  /* IMU interrupts: PA10/PA8 the module's, PE14/PE15 the board's, from each address. */
+  bcams_pin_in(GPIOA, GPIO_PIN_10 | GPIO_PIN_8, GPIO_PULLDOWN);
+  bcams_pin_in(GPIOE, GPIO_PIN_14 | GPIO_PIN_15, GPIO_PULLDOWN);
+  for (uint32_t k = 0U; k < 2U; k++)
+  {
+    const uint16_t a = (k == 0U) ? 0xD4U : 0xD6U;
+    uint8_t w = 0U;
+    if ((BSP_I2C1_ReadReg(a, 0x0FU, &w, 1U) == BSP_ERROR_NONE) && (w == 0x6AU))
+    {
+      imu[k] = 1U;
+      bcams_imu_edges(a, edges[k]);
+    }
+    P("INFO IMU at 0x%02X: %s; edges in 300 ms: module INT1 %lu INT2 %lu, board INT1 %lu INT2 %lu\r\n",
+      (unsigned)a, imu[k] ? "answers 0x6A" : "no answer", (unsigned long)edges[k][0], (unsigned long)edges[k][1],
+      (unsigned long)edges[k][2], (unsigned long)edges[k][3]);
+  }
+
+  /* SD card detect (PD9): the slot's switch pulls it low with a card (10 kOhm up). */
+  bcams_pin_in(GPIOD, GPIO_PIN_9, GPIO_NOPULL);
+  svc(2U);
+  card = (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_9) == GPIO_PIN_RESET) ? 1U : 0U;
+
+  /* Leave the lines to the module's own pulls, as before the test. */
+  bcams_pin_in(GPIOA, GPIO_PIN_7 | GPIO_PIN_9 | GPIO_PIN_8 | GPIO_PIN_10 | GPIO_PIN_11, GPIO_NOPULL);
+  bcams_pin_in(GPIOB, GPIO_PIN_11, GPIO_NOPULL);
+  bcams_pin_in(GPIOE, GPIO_PIN_14 | GPIO_PIN_15, GPIO_NOPULL);
+  (void)BSP_I2C1_DeInit();
+
+  P("INFO TOF_LPn low: ToF %s; high: %s (0x%02x 0x%02x); TOF_INT reads %lu; SD detect PD9 reads %s\r\n",
+    lpn_off ? "answers" : "silent", lpn_on ? "alive" : "not seen", (unsigned)tof[0], (unsigned)tof[1],
+    (unsigned long)tof_int, card ? "low (card in)" : "high (no card)");
+
+  {
+    const uint32_t en_ok   = ((en_off == 0U) && (en_on != 0U)) ? 1U : 0U;
+    const uint32_t xclr_ok = ((xclr_held == 0U) && (xclr_reset != 0U)) ? 1U : 0U;
+    const uint32_t lpn_ok  = ((lpn_off == 0U) && (lpn_on != 0U)) ? 1U : 0U;
+    const uint32_t int_ok  = ((edges[0][0] + edges[1][0]) > 10U) && ((edges[0][1] + edges[1][1]) > 10U);
+
+    if (en_ok && xclr_ok && lpn_ok && int_ok)
+    {
+      ok("bcamspins", "EN_MODULE PA7, NRST_CAM PB11, TOF_LPn PA9 act; module IMU INT1 PA10 and INT2 PA8 toggle from 0x%02X; TOF_INT %lu; card %s",
+         (edges[0][0] > 10U) ? 0xD4U : 0xD6U, (unsigned long)tof_int, card ? "in" : "out");
+    }
+    else
+    {
+      fail("bcamspins", "EN %s, XCLR %s, LPn %s, IMU INT %s (see INFO)", en_ok ? "ok" : "no effect",
+           xclr_ok ? "ok" : "no effect", lpn_ok ? "ok" : "no effect", int_ok ? "ok" : "no edges");
+    }
+  }
+}
+
+/* The module's VL53L5CX through BSP_RANGING_VL53L5CX_*. */
+#define BCAMSTOF_RUN_MS   2000U
+#define BCAMSTOF_IDLE_MS  500U
+
+void BSP_RANGING_VL53L5CX_WaitHook(void) { svc(0U); }
+
+/* TOF_INT (PA11) over Ms with no result read: falls, longest low and total low, in us. */
+static void bcamstof_int_watch(uint32_t Ms, uint32_t Mhz, uint32_t *pFalls, uint32_t *pLongestUs,
+                               uint32_t *pLowUs)
+{
+  const uint32_t t0 = HAL_GetTick();
+  uint32_t since = DWT->CYCCNT, longest = 0U, total = 0U, falls = 0U;
+  uint8_t  last = (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11) == GPIO_PIN_SET) ? 1U : 0U;
+
+  while ((HAL_GetTick() - t0) < Ms)
+  {
+    const uint32_t now = DWT->CYCCNT;
+    const uint8_t  lvl = (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_11) == GPIO_PIN_SET) ? 1U : 0U;
+
+    if ((lvl == 0U) && (last != 0U)) { falls++; since = now; }
+    if ((lvl != 0U) && (last == 0U)) { total += now - since; if ((now - since) > longest) { longest = now - since; } }
+    last = lvl;
+    (void)BSP_WDG_Refresh();
+  }
+  if (last == 0U)
+  {
+    const uint32_t d = DWT->CYCCNT - since;
+    total += d;
+    if (d > longest) { longest = d; }
+  }
+  *pFalls = falls; *pLongestUs = longest / Mhz; *pLowUs = total / Mhz;
+}
+
+/* Firmware load; 4 x 4 at 60 Hz and 8 x 8 at 15 Hz for 2 s each, with the read time;
+ * TOF_INT by its effect: one short low pulse per result. */
+static void cmd_bcamstof(void)
+{
+  static BSP_RANGING_VL53L5CX_Result_t res;
+  static const uint32_t zones[2] = { BSP_RANGING_VL53L5CX_ZONES_4X4, BSP_RANGING_VL53L5CX_ZONES_8X8 };
+  static const uint32_t rates[2] = { 60U, 15U };
+  const uint32_t mhz = HAL_RCC_GetCpuClockFreq() / 1000000U;
+  uint32_t load_ms, id = 0U, t0, got[2] = {0U, 0U}, errs = 0U, int_ok = 1U, rate_ok = 1U, pulse_us = 0U;
+  int32_t  r;
+
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL        |= DWT_CTRL_CYCCNTENA_Msk;
+  if (BSP_I2C1_Init() != BSP_ERROR_NONE) { fail("bcamstof", "I2C1 init"); return; }
+  r = BSP_I2C1_IsReady(BSP_CAMERA_IMX335_I2C_ADDRESS, 3U);
+  (void)BSP_I2C1_DeInit();
+  if (r != BSP_ERROR_NONE) { skip("bcamstof", "nothing at 0x34: no B-CAMS-IMX module"); return; }
+
+  t0 = HAL_GetTick();
+  r  = BSP_RANGING_VL53L5CX_Init();
+  load_ms = HAL_GetTick() - t0;
+  if (r != BSP_ERROR_NONE) { fail("bcamstof", "Init %ld after %lu ms", (long)r, (unsigned long)load_ms); return; }
+  (void)BSP_RANGING_VL53L5CX_ReadID(&id);
+  P("INFO VL53L5CX id 0x%04lx, firmware loaded in %lu ms\r\n", (unsigned long)id, (unsigned long)load_ms);
+
+  for (uint32_t m = 0U; m < 2U; m++)
+  {
+    const uint32_t expect = (rates[m] * BCAMSTOF_IDLE_MS) / 1000U;
+    uint32_t falls = 0U, longest = 0U, low = 0U, busy = 0U, rd_min = 0xFFFFFFFFU, rd_max = 0U;
+    uint32_t valid = 0U, dmin = 0xFFFFU, dmax = 0U;
+
+    r = BSP_RANGING_VL53L5CX_Start(zones[m], rates[m]);
+    if (r != BSP_ERROR_NONE) { (void)BSP_RANGING_VL53L5CX_DeInit(); fail("bcamstof", "Start %lu zones at %lu Hz: %ld", (unsigned long)zones[m], (unsigned long)rates[m], (long)r); return; }
+
+    /* Unread, the part still pulses INT once per result. */
+    bcamstof_int_watch(BCAMSTOF_IDLE_MS, mhz, &falls, &longest, &low);
+    if (((falls * 10U) < (expect * 7U)) || ((falls * 10U) > (expect * 13U)) || (longest > 1000U)) { int_ok = 0U; }
+    if (longest > pulse_us) { pulse_us = longest; }
+
+    t0 = HAL_GetTick();
+    while ((HAL_GetTick() - t0) < BCAMSTOF_RUN_MS)
+    {
+      const uint32_t c0 = DWT->CYCCNT;
+
+      r = BSP_RANGING_VL53L5CX_GetResult(&res);
+      if (r == BSP_ERROR_NONE)
+      {
+        const uint32_t us = (DWT->CYCCNT - c0) / mhz;
+
+        got[m]++;
+        if (us < rd_min) { rd_min = us; }
+        if (us > rd_max) { rd_max = us; }
+      }
+      else if (r == BSP_ERROR_BUSY) { busy++; }
+      else { errs++; }
+      svc(0U);
+    }
+    (void)BSP_RANGING_VL53L5CX_Stop();
+
+    for (uint32_t z = 0U; z < res.Zones; z++)
+    {
+      if (res.Distance[z] != 0U)
+      {
+        valid++;
+        if (res.Distance[z] < dmin) { dmin = res.Distance[z]; }
+        if (res.Distance[z] > dmax) { dmax = res.Distance[z]; }
+      }
+    }
+    P("INFO %lu zones at %lu Hz: %lu results in %lu ms (%lu polls found none, %lu errors), read %lu-%lu us; "
+      "last result %lu of %lu zones valid, %lu-%lu mm, die %ld C\r\n",
+      (unsigned long)zones[m], (unsigned long)rates[m], (unsigned long)got[m], (unsigned long)BCAMSTOF_RUN_MS,
+      (unsigned long)busy, (unsigned long)errs, (unsigned long)((got[m] != 0U) ? rd_min : 0U), (unsigned long)rd_max,
+      (unsigned long)valid, (unsigned long)res.Zones, (unsigned long)((valid != 0U) ? dmin : 0U),
+      (unsigned long)dmax, (long)res.TemperatureC);
+    P("INFO TOF_INT over %lu ms: %lu falls (%lu results expected), longest low %lu us, low %lu us in all\r\n",
+      (unsigned long)BCAMSTOF_IDLE_MS, (unsigned long)falls, (unsigned long)expect, (unsigned long)longest,
+      (unsigned long)low);
+
+    if ((got[m] * 1000U) < ((rates[m] * BCAMSTOF_RUN_MS * 8U) / 10U)) { rate_ok = 0U; }
+  }
+
+  /* The last 8 x 8 result, a row a line: distance (0 = no valid range) / ST's status. */
+  for (uint32_t row = 0U; row < 8U; row++)
+  {
+    const uint16_t *d = &res.Distance[row * 8U];
+    const uint8_t  *s = &res.Status[row * 8U];
+
+    P("INFO row %lu: %4u/%-3u %4u/%-3u %4u/%-3u %4u/%-3u %4u/%-3u %4u/%-3u %4u/%-3u %4u/%-3u\r\n", (unsigned long)row,
+      (unsigned)d[0], (unsigned)s[0], (unsigned)d[1], (unsigned)s[1], (unsigned)d[2], (unsigned)s[2],
+      (unsigned)d[3], (unsigned)s[3], (unsigned)d[4], (unsigned)s[4], (unsigned)d[5], (unsigned)s[5],
+      (unsigned)d[6], (unsigned)s[6], (unsigned)d[7], (unsigned)s[7]);
+  }
+  (void)BSP_RANGING_VL53L5CX_DeInit();
+
+  if ((id != BSP_RANGING_VL53L5CX_ID) || (rate_ok == 0U) || (errs != 0U) || (int_ok == 0U))
+  {
+    fail("bcamstof", "id 0x%04lx, %lu and %lu results, %lu errors, TOF_INT %s", (unsigned long)id,
+         (unsigned long)got[0], (unsigned long)got[1], (unsigned long)errs, int_ok ? "pulses" : "no pulse per result");
+    return;
+  }
+  ok("bcamstof", "VL53L5CX loaded in %lu ms; 4x4 %lu/s, 8x8 %lu/s; TOF_INT PA11 pulses low %lu us per result",
+     (unsigned long)load_ms, (unsigned long)((got[0] * 1000U) / BCAMSTOF_RUN_MS),
+     (unsigned long)((got[1] * 1000U) / BCAMSTOF_RUN_MS), (unsigned long)pulse_us);
+}
+
+/* Registers from Base, 8 words a line; Skip (if not 0xFFFFFFFF) is an offset with read
+ * side effects, shown as dashes. */
+static void boardregs_dump(const char *Name, uint32_t Base, uint32_t Bytes, uint32_t Skip)
+{
+  for (uint32_t off = 0U; off < Bytes; off += 32U)
+  {
+    char     line[128];
+    int      n = snprintf(line, sizeof line, "INFO REG %s %03lx:", Name, (unsigned long)off);
+
+    for (uint32_t k = 0U; (k < 8U) && (n > 0) && ((size_t)n < sizeof line); k++)
+    {
+      const uint32_t at = off + (k * 4U);
+
+      n += (at == Skip) ? snprintf(&line[n], sizeof line - (size_t)n, " --------")
+                        : snprintf(&line[n], sizeof line - (size_t)n, " %08lx",
+                                   (unsigned long)*(volatile const uint32_t *)(Base + at));
+    }
+    P("%s\r\n", line);
+    svc(0U);
+  }
+}
+
+/* The clocks and set-up the bootloader and BSP leave, for comparing boards.
+ * PLL1 (CPU) and PLL3 (camera pipe) run from the HSI, PLL4 (AXI, buses, timers, D-PHY
+ * configuration clock) from the 48 MHz crystal: the cycle counter against TIM5 measures the HSI. */
+static void cmd_boardregs(void)
+{
+  const uint32_t cpu_hz = HAL_RCC_GetCpuClockFreq();
+  const uint32_t tim_hz = HAL_RCCEx_GetTIMGFreq();
+  uint32_t c0, c1, t0, t1, t0b, t1b;
+
+#if defined(__ARM_FEATURE_CMSE) && (__ARM_FEATURE_CMSE == 3U)
+  __HAL_RCC_BSEC_CLK_ENABLE();
+  P("INFO UID %08lx %08lx %08lx, word at 0x18001004 0x%08lx\r\n", (unsigned long)((volatile const uint32_t *)UID_BASE)[0],
+    (unsigned long)((volatile const uint32_t *)UID_BASE)[1], (unsigned long)((volatile const uint32_t *)UID_BASE)[2],
+    (unsigned long)*(volatile const uint32_t *)0x18001004UL);
+#endif
+  P("INFO cpu %lu sys %lu hclk %lu pclk1 %lu pclk2 %lu pclk4 %lu pclk5 %lu tim %lu\r\n", (unsigned long)cpu_hz,
+    (unsigned long)HAL_RCC_GetSysClockFreq(), (unsigned long)HAL_RCC_GetHCLKFreq(), (unsigned long)HAL_RCC_GetPCLK1Freq(),
+    (unsigned long)HAL_RCC_GetPCLK2Freq(), (unsigned long)HAL_RCC_GetPCLK4Freq(), (unsigned long)HAL_RCC_GetPCLK5Freq(),
+    (unsigned long)tim_hz);
+  P("INFO pll1 %lu pll2 %lu pll3 %lu pll4 %lu; csi %lu dcmipp %lu xspi1 %lu xspi2 %lu i2c1 %lu sdmmc1 %lu\r\n",
+    (unsigned long)HAL_RCCEx_GetPLL1CLKFreq(), (unsigned long)HAL_RCCEx_GetPLL2CLKFreq(),
+    (unsigned long)HAL_RCCEx_GetPLL3CLKFreq(), (unsigned long)HAL_RCCEx_GetPLL4CLKFreq(),
+    (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_CSI), (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_DCMIPP),
+    (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_XSPI1), (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_XSPI2),
+    (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_I2C1), (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC1));
+
+  /* HSI against the crystal: 0.5 s of CPU cycles against TIM5 counts. */
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL        |= DWT_CTRL_CYCCNTENA_Msk;
+  __HAL_RCC_TIM5_CLK_ENABLE();
+  TIM5->CR1 = 0U; TIM5->PSC = 0U; TIM5->ARR = 0xFFFFFFFFU; TIM5->EGR = TIM_EGR_UG; TIM5->CR1 = TIM_CR1_CEN;
+  __disable_irq();
+  t0 = TIM5->CNT; c0 = DWT->CYCCNT; t0b = TIM5->CNT;
+  __enable_irq();
+  while ((DWT->CYCCNT - c0) < (cpu_hz / 2U)) { (void)BSP_WDG_Refresh(); }
+  __disable_irq();
+  t1 = TIM5->CNT; c1 = DWT->CYCCNT; t1b = TIM5->CNT;
+  __enable_irq();
+  TIM5->CR1 = 0U;
+  __HAL_RCC_TIM5_CLK_DISABLE();
+  {
+    const double ticks   = ((double)(t1 - t0) + (double)(t1b - t0b)) / 2.0;
+    const double ratio   = (double)(c1 - c0) / ticks;
+    const double nominal = (double)cpu_hz / (double)tim_hz;
+    const long   ppm     = (long)(((ratio / nominal) - 1.0) * 1.0e6);
+
+    P("INFO HSI against the crystal: %ld ppm (CPU %lu cycles in %lu timer ticks; PLL1 at %lu Hz in fact)\r\n",
+      ppm, (unsigned long)(c1 - c0), (unsigned long)(t1 - t0), (unsigned long)((double)HAL_RCCEx_GetPLL1CLKFreq() * (ratio / nominal)));
+  }
+
+  boardregs_dump("RCC", (uint32_t)RCC, 0x400U, 0xFFFFFFFFU);
+  boardregs_dump("PWR", (uint32_t)PWR, 0x100U, 0xFFFFFFFFU);
+  boardregs_dump("XSPI1", (uint32_t)XSPI1, 0x240U, 0x050U);
+  boardregs_dump("XSPI2", (uint32_t)XSPI2, 0x240U, 0x050U);
+
+  /* With the B-CAMS-IMX: the camera's clocks and the CSI receiver as Init leaves them. */
+  if ((BSP_I2C1_Init() == BSP_ERROR_NONE) && (BSP_I2C1_IsReady(BSP_CAMERA_IMX335_I2C_ADDRESS, 3U) == BSP_ERROR_NONE))
+  {
+    const BSP_CAMERA_Sensor_t *was = BSP_CAMERA_GetSensor();
+
+    (void)BSP_I2C1_DeInit();
+    if ((BSP_CAMERA_IMX335_Register() == BSP_ERROR_NONE) &&
+        (BSP_CAMERA_SetCarrier(BSP_CAMERA_CARRIER_STANDARD) == BSP_ERROR_NONE) &&
+        (BSP_CAMERA_IMX335_SetTiming(21U, 142U) == BSP_ERROR_NONE) &&
+        (BSP_CAMERA_Init(0, BSP_CAMERA_IMX335_R2592x1944, BSP_CAMERA_PF_RAW10) == BSP_ERROR_NONE))
+    {
+      P("INFO camera up: csi %lu dcmipp %lu\r\n", (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_CSI),
+        (unsigned long)HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_DCMIPP));
+      boardregs_dump("RCC2", (uint32_t)RCC, 0x400U, 0xFFFFFFFFU);
+      boardregs_dump("CSI", (uint32_t)CSI, 0x100U, 0xFFFFFFFFU);
+    }
+    else
+    {
+      P("INFO camera did not come up\r\n");
+    }
+    (void)BSP_CAMERA_DeInit(0);
+    (void)BSP_CAMERA_RegisterSensor(was);
+  }
+  else
+  {
+    (void)BSP_I2C1_DeInit();
+  }
+  ok("boardregs", "cpu %lu Hz, timers %lu Hz; registers above", (unsigned long)cpu_hz, (unsigned long)tim_hz);
+}
+
+/* Test-pattern frames on the dump pipe with one lane mapping: up to six in
+ * 1.5 s, the frame period, and how much of the buffer a frame wrote. */
+static uint32_t bcams_link_try(uint32_t carrier, uint32_t *pPeriodMs, uint32_t *pBytes)
+{
+  BSP_CAMERA_PipeConfig_t pc = {0};
+  uint32_t frames = 0U, t1 = 0U, t6 = 0U, i;
+
+  *pPeriodMs = 0U; *pBytes = 0U;
+  if (BSP_CAMERA_SetCarrier(carrier) != BSP_ERROR_NONE) { return 0U; }
+  {
+    /* An init failure is not "no frames": say so, or it reads as the other mapping. */
+    const int32_t r = BSP_CAMERA_Init(0, BSP_CAMERA_IMX335_R2592x1944, BSP_CAMERA_PF_RAW10);
+    if (r != BSP_ERROR_NONE) { P("INFO %s mapping: camera init %ld\r\n", (carrier == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight", (long)r); return 0U; }
+  }
+  (void)BSP_CAMERA_IMX335_SetTestPattern(10);
+  pc.PixelFormat = BSP_CAMERA_PIPE_PF_RAW10;
+  pc.Width = BSP_CAMERA_IMX335_WIDTH; pc.Height = BSP_CAMERA_IMX335_HEIGHT;
+  memset(CapBuf, 0xA5, sizeof CapBuf);
+  SCB_CleanDCache_by_Addr((volatile void *)CapBuf, (int32_t)sizeof CapBuf);
+  if ((BSP_CAMERA_ConfigPipe(0, BSP_CAMERA_PIPE_DUMP, &pc) == BSP_ERROR_NONE) &&
+      (BSP_CAMERA_Start(0, BSP_CAMERA_PIPE_DUMP, CapBuf, BSP_CAMERA_MODE_CONTINUOUS) == BSP_ERROR_NONE))
+  {
+    uint32_t t0 = HAL_GetTick();
+    CamFrames = 0U;
+    while (((HAL_GetTick() - t0) < 1500U) && (CamFrames < 6U))
+    {
+      if ((CamFrames >= 1U) && (t1 == 0U)) { t1 = HAL_GetTick(); }
+      svc(1U);
+    }
+    t6 = HAL_GetTick();
+    frames = CamFrames;
+    (void)BSP_CAMERA_Stop(0, BSP_CAMERA_PIPE_DUMP);
+    if (frames >= 6U) { *pPeriodMs = (t6 - t1) / 5U; }
+  }
+  SCB_InvalidateDCache_by_Addr((volatile void *)CapBuf, (int32_t)sizeof CapBuf);
+  for (i = sizeof CapBuf; (i > 0U) && (CapBuf[i - 1U] == 0xA5U); i--) { }
+  *pBytes = i;
+  (void)BSP_CAMERA_IMX335_SetTestPattern(-1);
+  (void)BSP_CAMERA_DeInit(0);
+  return frames;
+}
+
+/* The CSI-2 link at 1600 Mbps: which lane mapping carries frames, at what
+ * rate, and the dump pipe's layout (bytes a frame / pixels). */
+static void cmd_bcamslink(void)
+{
+  const BSP_CAMERA_Sensor_t *was = BSP_CAMERA_GetSensor();
+  const uint32_t started = BSP_CAMERA_GetCarrier();
+  uint32_t fs, fi, ps, pi, bs, bi;
+
+  if (BSP_CAMERA_IMX335_Register() != BSP_ERROR_NONE) { (void)BSP_CAMERA_RegisterSensor(was); skip("bcamslink", "no IMX335"); return; }
+  if ((BSP_I2C1_Init() != BSP_ERROR_NONE) || (BSP_I2C1_IsReady(BSP_CAMERA_IMX335_I2C_ADDRESS, 3U) != BSP_ERROR_NONE))
+  { (void)BSP_I2C1_DeInit(); (void)BSP_CAMERA_RegisterSensor(was); skip("bcamslink", "nothing at 0x34"); return; }
+  (void)BSP_I2C1_DeInit();
+
+  fs = bcams_link_try(BSP_CAMERA_CARRIER_STANDARD, &ps, &bs);
+  fi = bcams_link_try(BSP_CAMERA_CARRIER_INVERTED, &pi, &bi);
+  (void)BSP_CAMERA_SetCarrier(started);
+  (void)BSP_CAMERA_RegisterSensor(was);
+  /* The period here is the dump pipe's into PSRAM, which paces a full-size frame;
+   * bcamspipe measures the sensor's. */
+  P("INFO standard: %lu frames, %lu ms apart, %lu bytes written; inverted: %lu frames, %lu ms apart, %lu bytes written (dump pipe into PSRAM)\r\n",
+    (unsigned long)fs, (unsigned long)ps, (unsigned long)bs, (unsigned long)fi, (unsigned long)pi, (unsigned long)bi);
+  P("INFO a 2592 x 1944 frame is %lu bytes at 16 bits a pixel, %lu packed at 10\r\n",
+    (unsigned long)(2592UL * 1944UL * 2UL), (unsigned long)(2592UL * 1944UL * 10UL / 8UL));
+
+  if ((fs >= 6U) == (fi >= 6U))
+  { fail("bcamslink", "the mappings do not separate: standard %lu frames, inverted %lu", (unsigned long)fs, (unsigned long)fi); return; }
+  ok("bcamslink", "the %s mapping captures, the other none; %lu bytes a frame on the dump pipe (16 bits a pixel)",
+     (fs >= 6U) ? "straight" : "crossed", (unsigned long)((fs >= 6U) ? bs : bi));
+}
+
+/* The sensor's line period at a timing: MAIN takes the whole width into a
+ * 64-line band on chip (as the encoder path does; PSRAM would pace the pipe),
+ * with a line event every 64 lines timed on the cycle counter (the CPU clock).
+ * Also the frame period over a second. Leaves the camera down. */
+#define BCAMS_EVENT_LINES  64U
+static uint32_t bcams_line_ns(uint32_t Fps, uint32_t LinePercent, uint32_t *pProgrammedNs, uint32_t *pFrameMs)
+{
+  BSP_CAMERA_PipeConfig_t pc = {0};
+  uint32_t frame_lines = 0U, measured = 0U, seen, t0, f0, e0;
+  int32_t r;
+
+  *pProgrammedNs = 0U; *pFrameMs = 0U; BcamsMarkCount = 0U;
+  if ((BSP_CAMERA_IMX335_SetTiming(Fps, LinePercent) != BSP_ERROR_NONE) ||
+      (BSP_CAMERA_Init(0, BSP_CAMERA_IMX335_R2592x1944, BSP_CAMERA_PF_RAW10) != BSP_ERROR_NONE))
+  { return 0U; }
+  (void)BSP_CAMERA_IMX335_GetLineTiming(pProgrammedNs, &frame_lines);
+
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  pc.PixelFormat = BSP_CAMERA_PIPE_PF_YUV422; pc.Width = 0U; pc.Height = 0U;
+  r = BSP_CAMERA_ConfigPipe(0, BSP_CAMERA_PIPE_MAIN, &pc);
+  if (r == BSP_ERROR_NONE) { r = BSP_CAMERA_ConfigLineBuffer(0, BSP_CAMERA_PIPE_MAIN, BCAMS_EVENT_LINES, BCAMS_EVENT_LINES); }
+  if (r == BSP_ERROR_NONE) { r = BSP_CAMERA_Start(0, BSP_CAMERA_PIPE_MAIN, Band, BSP_CAMERA_MODE_CONTINUOUS); }
+  if (r == BSP_ERROR_NONE)
+  {
+    e0 = CamErrors;
+    CamFrames = 0U; t0 = HAL_GetTick();
+    while (((HAL_GetTick() - t0) < 1000U) && (CamFrames < 2U)) { svc(1U); }
+    BcamsMarkCount = 0U; BcamsTiming = 1U; seen = CamFrames;
+    while (((HAL_GetTick() - t0) < 1500U) && (CamFrames == seen)) { svc(0U); }
+    BcamsTiming = 0U;
+    if (BcamsMarkCount >= 4U)
+    {
+      const uint32_t cycles = BcamsMarks[BcamsMarkCount - 1U] - BcamsMarks[1];
+      measured = (uint32_t)(((uint64_t)cycles * 1000000000ULL) /
+                            ((uint64_t)HAL_RCC_GetCpuClockFreq() * BCAMS_EVENT_LINES * (BcamsMarkCount - 2U)));
+    }
+    f0 = CamFrames; t0 = HAL_GetTick();
+    while ((HAL_GetTick() - t0) < 1000U) { svc(1U); }
+    if (CamFrames != f0) { *pFrameMs = (HAL_GetTick() - t0) / (CamFrames - f0); }
+    (void)BSP_CAMERA_Stop(0, BSP_CAMERA_PIPE_MAIN);
+    P("INFO   %lu pipe errors while measuring\r\n", (unsigned long)(CamErrors - e0));
+  }
+  (void)BSP_CAMERA_ConfigLineBuffer(0, BSP_CAMERA_PIPE_MAIN, BSP_CAMERA_LINES_OFF, BSP_CAMERA_LINES_OFF);
+  (void)BSP_CAMERA_DeInit(0);
+  return measured;
+}
+
+/* MAIN with colour: the sensor's line period, then 640 x 480 with the
+ * auto-exposure running on the pipe's statistics. */
+static void cmd_bcamspipe(void)
+{
+  const BSP_CAMERA_Sensor_t *was = BSP_CAMERA_GetSensor();
+  BSP_CAMERA_PipeConfig_t pc = {0};
+  DCMIPP_RawBayer2RGBConfTypeDef demosaic = {0};
+  DCMIPP_BlackLevelConfTypeDef   black = {0};
+  uint32_t line_ns = 0U, base_ns = 0U, measured_ns = 0U, frames = 0U, avg = 0U, first_avg = 0U, exp_us = 0U, gain = 0U;
+  uint32_t seen, t0;
+  int32_t  r;
+
+  if (BSP_CAMERA_IMX335_Register() != BSP_ERROR_NONE) { (void)BSP_CAMERA_RegisterSensor(was); skip("bcamspipe", "no IMX335"); return; }
+  if ((BSP_I2C1_Init() != BSP_ERROR_NONE) || (BSP_I2C1_IsReady(BSP_CAMERA_IMX335_I2C_ADDRESS, 3U) != BSP_ERROR_NONE))
+  { (void)BSP_I2C1_DeInit(); (void)BSP_CAMERA_RegisterSensor(was); skip("bcamspipe", "nothing at 0x34"); return; }
+  (void)BSP_I2C1_DeInit();
+
+  /* 1. The line period at ST's timing, at 10 fps with lines 300%, and at the IMX335
+   *    examples' 21 fps with lines 142%. */
+  P("INFO cycle counter at the CPU clock: %lu Hz (SystemCoreClock %lu Hz)\r\n",
+    (unsigned long)HAL_RCC_GetCpuClockFreq(), (unsigned long)SystemCoreClock);
+  {
+    static const uint32_t timing[3][2] = { { 30U, 100U }, { 10U, 300U }, { 21U, 142U } };
+    for (uint32_t k = 0U; k < 3U; k++)
+    {
+      uint32_t frame_ms = 0U;
+      measured_ns = bcams_line_ns(timing[k][0], timing[k][1], &line_ns, &frame_ms);
+      P("INFO %lu fps, lines %lu%%: %lu ns programmed, %lu ns measured over %lu events, %lu ms a frame; a 16-line row every %lu us\r\n",
+        (unsigned long)timing[k][0], (unsigned long)timing[k][1], (unsigned long)line_ns, (unsigned long)measured_ns,
+        (unsigned long)BcamsMarkCount, (unsigned long)frame_ms, (unsigned long)((measured_ns * 16U) / 1000U));
+      if (k == 0U) { base_ns = measured_ns; }
+    }
+    measured_ns = base_ns;
+  }
+
+  (void)BSP_CAMERA_IMX335_SetTiming(30U, 100U);
+  r = BSP_CAMERA_Init(0, BSP_CAMERA_IMX335_R2592x1944, BSP_CAMERA_PF_RAW10);
+  if (r != BSP_ERROR_NONE) { (void)BSP_CAMERA_RegisterSensor(was); fail("bcamspipe", "init %ld (bcamslink picks the carrier)", (long)r); return; }
+
+  /* 2. 640 x 480, demosaiced and metered; the exposure loop runs once a frame. */
+  pc.PixelFormat = BSP_CAMERA_PIPE_PF_YUV422; pc.Width = 640U; pc.Height = 480U;
+  r = BSP_CAMERA_ConfigPipe(0, BSP_CAMERA_PIPE_MAIN, &pc);
+  if (r != BSP_ERROR_NONE) { fail("bcamspipe", "MAIN at 640 x 480 from 2592 x 1944: %ld", (long)r); goto pipe_out; }
+  demosaic.RawBayerType = BSP_CAMERA_BAYER_RGGB;
+  demosaic.PeakStrength = DCMIPP_RAWBAYER_ALGO_STRENGTH_4; demosaic.VLineStrength = DCMIPP_RAWBAYER_ALGO_STRENGTH_8;
+  demosaic.HLineStrength = DCMIPP_RAWBAYER_ALGO_STRENGTH_8; demosaic.EdgeStrength = DCMIPP_RAWBAYER_ALGO_STRENGTH_16;
+  black.RedCompBlackLevel = black.GreenCompBlackLevel = black.BlueCompBlackLevel = BSP_CAMERA_IMX335_BLACK_LEVEL;
+  if ((BSP_CAMERA_SetIspDemosaicing(0, BSP_CAMERA_PIPE_MAIN, &demosaic) != BSP_ERROR_NONE) ||
+      (BSP_CAMERA_SetIspBlackLevel(0, BSP_CAMERA_PIPE_MAIN, &black) != BSP_ERROR_NONE) ||
+      (BSP_CAMERA_SetIspStatistics(0, BSP_CAMERA_PIPE_MAIN, DCMIPP_STAT_EXT_SOURCE_POST_DEMOS_L) != BSP_ERROR_NONE))
+  { fail("bcamspipe", "ISP set-up"); goto pipe_out; }
+  r = BSP_CAMERA_Start(0, BSP_CAMERA_PIPE_MAIN, CapBuf, BSP_CAMERA_MODE_CONTINUOUS);
+  if (r != BSP_ERROR_NONE) { fail("bcamspipe", "start %ld", (long)r); goto pipe_out; }
+  CamFrames = 0U; seen = 0U; t0 = HAL_GetTick();
+  while ((HAL_GetTick() - t0) < 4000U)
+  {
+    if (CamFrames != seen)
+    {
+      seen = CamFrames;
+      if (BSP_CAMERA_GetIspStatistics(0, BSP_CAMERA_PIPE_MAIN, &avg) == BSP_ERROR_NONE)
+      {
+        if (frames == 1U) { first_avg = avg; }
+        (void)BSP_CAMERA_IMX335_AutoExposure(avg, 50U);
+      }
+      frames++;
+    }
+    svc(0U);
+  }
+  (void)BSP_CAMERA_Stop(0, BSP_CAMERA_PIPE_MAIN);
+  (void)BSP_CAMERA_IMX335_GetExposure(&exp_us, &gain);
+  P("INFO %lu frames in 4 s; average %lu at the start, %lu at the end (target 50); exposure %lu us, gain %lu mdB\r\n",
+    (unsigned long)frames, (unsigned long)first_avg, (unsigned long)avg, (unsigned long)exp_us, (unsigned long)gain);
+  /* 30 fps for 4 s is 120 frames; a marginal CSI link drops most of them. */
+  if (frames < 100U) { fail("bcamspipe", "only %lu frames in 4 s on MAIN (120 at 30 fps)", (unsigned long)frames); goto pipe_out; }
+  ok("bcamspipe", "line %lu ns; 640 x 480 at %lu fps; exposure loop ended at average %lu (target 50), %lu us, %lu mdB",
+     (unsigned long)measured_ns, (unsigned long)(frames / 4U), (unsigned long)avg, (unsigned long)exp_us, (unsigned long)gain);
+
+pipe_out:
+  (void)BSP_CAMERA_DeInit(0);
+  (void)BSP_CAMERA_RegisterSensor(was);
+}
+
+/* The card's last 1 MB, saved and put back: written, read back through every
+ * buffer path (on-chip direct, unaligned through the bounce buffer, PSRAM),
+ * timed both ways. */
+#define SD_TEST_BLOCKS     2048U
+#define SD_CHUNK_BLOCKS    128U
+static uint8_t SdAligned[SD_CHUNK_BLOCKS * BSP_SD_BLOCK_SIZE] __attribute__((aligned(32)));
+static uint8_t SdOdd[(16U * BSP_SD_BLOCK_SIZE) + 1U];
+
+static uint32_t sd_word(uint32_t Block, uint32_t Word) { return (Block * 0x9E3779B1U) ^ (Word * 0x85EBCA77U) ^ 0xA5C3F00FU; }
+static void sd_fill(uint8_t *p, uint32_t Block, uint32_t Count)
+{
+  for (uint32_t b = 0U; b < Count; b++) { for (uint32_t w = 0U; w < 128U; w++) { uint32_t v = sd_word(Block + b, w); memcpy(&p[(b * 512U) + (w * 4U)], &v, 4U); } }
+}
+static uint32_t sd_check(const uint8_t *p, uint32_t Block, uint32_t Count)
+{
+  uint32_t bad = 0U;
+  for (uint32_t b = 0U; b < Count; b++) { for (uint32_t w = 0U; w < 128U; w++) { uint32_t v; memcpy(&v, &p[(b * 512U) + (w * 4U)], 4U); if (v != sd_word(Block + b, w)) { bad++; } } }
+  return bad;
+}
+
+void BSP_SD_WaitHook(void) { svc(0U); }
+
+static void cmd_sd(void)
+{
+  BSP_SD_CardInfo_t info;
+  uint8_t *saved = CapBuf;                                    /* 1 MB of PSRAM */
+  uint8_t *psram = &CapBuf[SD_TEST_BLOCKS * BSP_SD_BLOCK_SIZE];
+  uint32_t first, t0, write_ms, read_ms, bad = 0U, b;
+  int32_t  r = BSP_SD_Init();
+
+  if (r == BSP_ERROR_BUSY) { fail("sd", "the radio is powered: it shares SDMMC1"); return; }
+  if ((r == BSP_ERROR_UNKNOWN_COMPONENT) || (r == BSP_ERROR_COMPONENT_FAILURE))
+  { P("INFO init %ld, HAL error 0x%08lx\r\n", (long)r, (unsigned long)BSP_SD_GetHandle()->ErrorCode); skip("sd", "no card answered (not fitted?)"); return; }
+  if (r != BSP_ERROR_NONE) { fail("sd", "init %ld", (long)r); return; }
+  (void)BSP_SD_GetCardInfo(&info);
+  P("INFO card: maker 0x%02x '%s' serial 0x%08lx, %s v%u, %lu MB, erase unit %lu blocks, clock %lu Hz\r\n",
+    (unsigned)info.ManufacturerId, info.Product, (unsigned long)info.Serial,
+    (info.CardType == CARD_SDHC_SDXC) ? "SDHC/SDXC" : "SDSC", (info.CardVersion == CARD_V2_X) ? 2U : 1U,
+    (unsigned long)(info.BlockCount / 2048U), (unsigned long)info.EraseBlocks, (unsigned long)info.ClockHz);
+  P("INFO CID %08lx %08lx %08lx %08lx CSD %08lx %08lx %08lx %08lx\r\n",
+    (unsigned long)info.Cid[0], (unsigned long)info.Cid[1], (unsigned long)info.Cid[2], (unsigned long)info.Cid[3],
+    (unsigned long)info.Csd[0], (unsigned long)info.Csd[1], (unsigned long)info.Csd[2], (unsigned long)info.Csd[3]);
+  if (info.BlockCount < (SD_TEST_BLOCKS * 4U)) { fail("sd", "card too small (%lu blocks)", (unsigned long)info.BlockCount); goto sd_out; }
+  first = info.BlockCount - SD_TEST_BLOCKS;
+
+  /* Save what is there. */
+  r = BSP_SD_ReadBlocks(saved, first, SD_TEST_BLOCKS);
+  if (r != BSP_ERROR_NONE) { fail("sd", "reading the last 1 MB to save it: %ld", (long)r); goto sd_out; }
+
+  /* Write 1 MB from on-chip RAM, a chunk at a time, timed. */
+  t0 = HAL_GetTick();
+  for (b = 0U; (b < SD_TEST_BLOCKS) && (r == BSP_ERROR_NONE); b += SD_CHUNK_BLOCKS)
+  { sd_fill(SdAligned, first + b, SD_CHUNK_BLOCKS); r = BSP_SD_WriteBlocks(SdAligned, first + b, SD_CHUNK_BLOCKS); }
+  write_ms = HAL_GetTick() - t0;
+  if (r != BSP_ERROR_NONE) { fail("sd", "write at block %lu: %ld (HAL 0x%08lx)", (unsigned long)(first + b - SD_CHUNK_BLOCKS), (long)r, (unsigned long)BSP_SD_GetHandle()->ErrorCode); goto sd_restore; }
+
+  /* Read it back: direct, timed. */
+  t0 = HAL_GetTick();
+  for (b = 0U; (b < SD_TEST_BLOCKS) && (r == BSP_ERROR_NONE); b += SD_CHUNK_BLOCKS)
+  { r = BSP_SD_ReadBlocks(SdAligned, first + b, SD_CHUNK_BLOCKS); if (r == BSP_ERROR_NONE) { bad += sd_check(SdAligned, first + b, SD_CHUNK_BLOCKS); } }
+  read_ms = HAL_GetTick() - t0;
+  if ((r != BSP_ERROR_NONE) || (bad != 0U)) { fail("sd", "direct read back: %ld, %lu words wrong", (long)r, (unsigned long)bad); goto sd_restore; }
+
+  /* Through the bounce buffer: an odd address, then PSRAM; and a single block. */
+  r = BSP_SD_ReadBlocks(&SdOdd[1], first + 100U, 16U);
+  if (r == BSP_ERROR_NONE) { bad += sd_check(&SdOdd[1], first + 100U, 16U); }
+  if (r == BSP_ERROR_NONE) { r = BSP_SD_ReadBlocks(psram, first, 256U); }
+  if (r == BSP_ERROR_NONE) { bad += sd_check(psram, first, 256U); }
+  if (r == BSP_ERROR_NONE) { sd_fill(&SdOdd[1], first + 7U, 1U); r = BSP_SD_WriteBlocks(&SdOdd[1], first + 7U, 1U); }
+  if (r == BSP_ERROR_NONE) { memset(SdAligned, 0, 512U); r = BSP_SD_ReadBlocks(SdAligned, first + 7U, 1U); }
+  if (r == BSP_ERROR_NONE) { bad += sd_check(SdAligned, first + 7U, 1U); }
+  if ((r != BSP_ERROR_NONE) || (bad != 0U)) { fail("sd", "bounce paths: %ld, %lu words wrong", (long)r, (unsigned long)bad); goto sd_restore; }
+
+  P("INFO 1 MB written in %lu ms (%lu KB/s), read in %lu ms (%lu KB/s)\r\n",
+    (unsigned long)write_ms, (unsigned long)(write_ms ? (1024000UL / write_ms) : 0UL),
+    (unsigned long)read_ms, (unsigned long)(read_ms ? (1024000UL / read_ms) : 0UL));
+
+sd_restore:
+  {
+    const int32_t was_ok = ((r == BSP_ERROR_NONE) && (bad == 0U)) ? 1 : 0;
+    /* A failed transfer resets neuron6_sd: bring the card back first. */
+    int32_t rr = BSP_SD_Init();
+    uint32_t differ = 0U;
+    if (rr == BSP_ERROR_NONE) { rr = BSP_SD_WriteBlocks(saved, first, SD_TEST_BLOCKS); }
+    for (b = 0U; (b < SD_TEST_BLOCKS) && (rr == BSP_ERROR_NONE); b += SD_CHUNK_BLOCKS)
+    {
+      rr = BSP_SD_ReadBlocks(SdAligned, first + b, SD_CHUNK_BLOCKS);
+      if ((rr == BSP_ERROR_NONE) && (memcmp(SdAligned, &saved[b * 512U], SD_CHUNK_BLOCKS * 512U) != 0)) { differ++; }
+    }
+    if ((rr != BSP_ERROR_NONE) || (differ != 0U))
+    { fail("sd", "the card's last 1 MB was NOT restored (%ld, %lu chunks differ)", (long)rr, (unsigned long)differ); goto sd_out; }
+    if (was_ok)
+    {
+      ok("sd", "%lu MB card at %lu Hz: 1 MB verified direct, unaligned, from PSRAM and one block; write %lu KB/s, read %lu KB/s; restored",
+         (unsigned long)(info.BlockCount / 2048U), (unsigned long)info.ClockHz,
+         (unsigned long)(write_ms ? (1024000UL / write_ms) : 0UL), (unsigned long)(read_ms ? (1024000UL / read_ms) : 0UL));
+    }
+  }
+
+sd_out:
+  (void)BSP_SD_DeInit();
+}
+
+/* FatFs on the card: a 256 KB file written, read back, compared and deleted. */
+static void cmd_sdfat(void)
+{
+  static FATFS fs;
+  static FIL   f;
+  UINT n = 0U;
+  FRESULT fr;
+  uint32_t bad = 0U, b, t0, ms;
+
+  fr = f_mount(&fs, "", 1);
+  if (fr == FR_NOT_READY) { skip("sdfat", "no card"); (void)BSP_SD_DeInit(); return; }
+  if (fr != FR_OK) { fail("sdfat", "mount %d (FAT32 or exFAT expected)", (int)fr); goto fat_out; }
+  P("INFO mounted: %s\r\n", (fs.fs_type == FS_EXFAT) ? "exFAT" : (fs.fs_type == FS_FAT32) ? "FAT32" : "FAT12/16");
+
+  fr = f_open(&f, "N6TEST.BIN", FA_CREATE_ALWAYS | FA_WRITE);
+  t0 = HAL_GetTick();
+  for (b = 0U; (b < 512U) && (fr == FR_OK); b += 16U)
+  { sd_fill(SdAligned, b, 16U); fr = f_write(&f, SdAligned, 16U * 512U, &n); if (n != (16U * 512U)) { fr = FR_DISK_ERR; } }
+  if (fr == FR_OK) { fr = f_close(&f); }
+  ms = HAL_GetTick() - t0;
+  if (fr != FR_OK) { fail("sdfat", "writing N6TEST.BIN: %d", (int)fr); goto fat_out; }
+
+  fr = f_open(&f, "N6TEST.BIN", FA_READ);
+  for (b = 0U; (b < 512U) && (fr == FR_OK); b += 16U)
+  { fr = f_read(&f, &SdOdd[1], 16U * 512U, &n); if (n != (16U * 512U)) { fr = FR_DISK_ERR; } else { bad += sd_check(&SdOdd[1], b, 16U); } }
+  if (fr == FR_OK) { fr = f_close(&f); }
+  if ((fr != FR_OK) || (bad != 0U)) { fail("sdfat", "reading N6TEST.BIN: %d, %lu words wrong", (int)fr, (unsigned long)bad); goto fat_out; }
+  fr = f_unlink("N6TEST.BIN");
+  if (fr != FR_OK) { fail("sdfat", "deleting N6TEST.BIN: %d", (int)fr); goto fat_out; }
+  ok("sdfat", "256 KB file written in %lu ms, read back unaligned, identical, deleted", (unsigned long)ms);
+
+fat_out:
+  (void)f_mount(NULL, "", 0);
+  (void)BSP_SD_DeInit();
+}
+
+/* The encoder's own speed, without the camera: 2592-wide strips of random
+ * pixels encoded from on-chip RAM at quality 5, timed on the cycle counter.
+ * The 64-line strip less the 32-line one is two macroblock rows, set-up
+ * removed. A line-buffer stream needs its rows to arrive no faster than this. */
+static uint32_t venc_lcg = 12345U;
+static uint8_t venc_rand(void) { venc_lcg = (venc_lcg * 1103515245U) + 12345U; return (uint8_t)(venc_lcg >> 16); }
+
+static int32_t venc_time(uint8_t *Src, uint32_t W, uint32_t H, uint32_t *pUs)
+{
+  BSP_VENC_Band_t band; BSP_VENC_Config_t vc = {0}; BSP_VENC_Statistics_t st = {0};
+  uint32_t best = 0xFFFFFFFFU, n = 0U, t;
+  int32_t r = BSP_VENC_GetBandGeometry(W, H, &band);
+  if (r != BSP_ERROR_NONE) { return r; }
+  vc.Band = band; vc.pBand = NULL; vc.SourceStart = NULL; vc.Quality = 5U;
+  r = BSP_VENC_Init(0, &vc);
+  if (r != BSP_ERROR_NONE) { return r; }
+  for (uint32_t i = 0U; (i < 3U) && (r == BSP_ERROR_NONE); i++)
+  {
+    t = DWT->CYCCNT;
+    r = BSP_VENC_EncodeFrame(0, Src, JpegBuf, JPEG_BUF_BYTES, &n);
+    t = DWT->CYCCNT - t;
+    if (t < best) { best = t; }
+    svc(0U);
+  }
+  if (r != BSP_ERROR_NONE) { (void)BSP_VENC_GetStatistics(0, &st); P("INFO encode %ld, encoder error %ld\r\n", (long)r, (long)(int32_t)st.LastError); }
+  (void)BSP_VENC_DeInit(0);
+  *pUs = (uint32_t)(((uint64_t)best * 1000000ULL) / HAL_RCC_GetCpuClockFreq());
+  return r;
+}
+
+static void cmd_vencspeed(void)
+{
+  const uint32_t w = 2592U;
+  uint32_t us32 = 0U, us64 = 0U, row_us, i;
+  int32_t r;
+
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  /* Both strips fit the band (64 lines of 2592 YUV422 pixels is 331,776 bytes). */
+  for (i = 0U; i < (w * 64U * 2U); i++) { Band[i] = venc_rand(); }
+  r = venc_time(Band, w, 32U, &us32);
+  if (r == BSP_ERROR_NONE) { r = venc_time(Band, w, 64U, &us64); }
+  if ((r != BSP_ERROR_NONE) || (us64 <= us32)) { fail("vencspeed", "encode %ld (32 lines %lu us, 64 lines %lu us)", (long)r, (unsigned long)us32, (unsigned long)us64); return; }
+  row_us = (us64 - us32) / 2U;
+  P("INFO 2592x32 in %lu us, 2592x64 in %lu us\r\n", (unsigned long)us32, (unsigned long)us64);
+  ok("vencspeed", "%lu us a 2592-wide macroblock row, %lu Mpixel/s (memory source, quality 5, random pixels)",
+     (unsigned long)row_us, (unsigned long)((w * 16U) / row_us));
+}
+
 static const cmd_t Commands[] = {
   { "id", cmd_id }, { "clk", cmd_clk }, { "led", cmd_led }, { "btn", cmd_btn }, { "i2c", cmd_i2c },
   { "imu", cmd_imu }, { "mag", cmd_mag }, { "magdbg", cmd_magdbg }, { "magloop", cmd_magloop }, { "magcont", cmd_magcont }, { "i2cref", cmd_i2cref }, { "adc", cmd_adc }, { "adcrif", cmd_adcrif }, { "imucfg", cmd_imucfg }, { "audcfg", cmd_audcfg }, { "camcfg", cmd_camcfg }, { "camsusp", cmd_camsusp }, { "camisp", cmd_camisp }, { "cammode", cmd_cammode }, { "lcd", cmd_lcd }, { "reg16", cmd_reg16 }, { "audset", cmd_audset }, { "pwmcfg", cmd_pwmcfg }, { "miscapi", cmd_miscapi }, { "io", cmd_io }, { "hdr", cmd_hdr },
@@ -5006,6 +5920,7 @@ static const cmd_t Commands[] = {
   { "mic", cmd_mic }, { "spk", cmd_spk }, { "audloop", cmd_audloop }, { "lcdbmp", cmd_lcdbmp }, { "cam", cmd_cam }, { "camcarrier", cmd_camcarrier }, { "camcore", cmd_camcore }, { "campic", cmd_campic }, { "hdredge", cmd_hdredge }, { "jpeg", cmd_jpeg },
   { "vencreg", cmd_vencreg }, { "jpegmem", cmd_jpegmem }, { "jpegdump", cmd_jpegdump }, { "wifi", cmd_wifi },
   { "bt", cmd_bt }, { "tof", cmd_tof }, { "tofgrid", cmd_tofgrid }, { "thermal", cmd_thermal }, { "vospi", cmd_vospi }, { "vencprobe", cmd_vencprobe }, { "camres", cmd_camres }, { "camxga", cmd_camxga }, { "vencrecover", cmd_vencrecover }, { "jpeggap", cmd_jpeggap }, { "jpegtorn", cmd_jpegtorn }, { "jpegres", cmd_jpegres }, { "jpegrun", cmd_jpegrun }, { "rif", cmd_rif }, { "vencrst", cmd_vencrst }, { "camreg", cmd_camreg }, { "camlive", cmd_camlive }, { "bkp", cmd_bkp }, { "bkpclr", cmd_bkpclr },
+  { "i2cscan", cmd_i2cscan }, { "bcams", cmd_bcams }, { "bcamspins", cmd_bcamspins }, { "bcamstof", cmd_bcamstof }, { "boardregs", cmd_boardregs }, { "bcamslink", cmd_bcamslink }, { "bcamspipe", cmd_bcamspipe }, { "sd", cmd_sd }, { "sdfat", cmd_sdfat }, { "vencspeed", cmd_vencspeed },
 };
 
 static void dispatch(const char *cmd)

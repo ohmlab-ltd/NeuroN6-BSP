@@ -1,4 +1,4 @@
-/* The simulated Neuro N6 the boot loader's source runs on. See fsbl_sim.h
+/* The simulated Neuro N6 the bootloader's source runs on. See fsbl_sim.h
  * and README.md. Linux only: it puts the flash, the PSRAM and the peripheral
  * registers at the addresses the loader uses, and runs each boot in a child
  * process.

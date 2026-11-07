@@ -19,7 +19,7 @@
 #include "tusb.h"
 #include "device/usbd_pvt.h"   /* usbd_edpt_busy() */
 
-/* Found at reset, this makes the first stage boot loader stop in DFU mode. */
+/* Found at reset, this makes the first stage bootloader stop in DFU mode. */
 #define COM_FORCE_DFU_MAGIC   0xF4CDF4u
 #define COM_BKP_DFU_INDEX     2U
 #define COM_BKP_SPARE_INDEX   1U

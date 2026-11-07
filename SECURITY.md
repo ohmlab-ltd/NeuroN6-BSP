@@ -16,7 +16,7 @@ Security updates until 31 December 2031, announced on GitHub.
 ## Scope
 
 The drivers, the libraries under `Middlewares/NeuroN6`, the examples, and the
-boot loader's source and image in `FSBL/`.
+bootloader's source and image in `FSBL/`.
 
 ## Limits
 
@@ -25,7 +25,7 @@ boot loader's source and image in `FSBL/`.
 - No network update path. Updates are installed over USB.
 - Model weights in external flash are neither encrypted nor authenticated.
 - The USB serial port and vendor endpoint are not authenticated. A host on
-  either can reboot the board into the boot loader, and the vendor endpoint
+  either can reboot the board into the bootloader, and the vendor endpoint
   gives it the board's access point password.
 - Wi-Fi: WPA2 and WPA3 only. The board's access point uses a random password
   from the chip's random number generator, stored on the board. The video link

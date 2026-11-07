@@ -24,7 +24,7 @@ a power cycle, and writing one record keeps every other.
 
 It needs FreeRTOS (a read or a stage holds the scheduler for under a
 millisecond), the host contract from `Middlewares/NeuroN6/PostProcess`,
-backup-domain access (every example's `main()` enables it), and a boot loader
+backup-domain access (every example's `main()` enables it), and a bootloader
 that applies a staged asset, as the Neuro N6 FSBL does.
 `harness/bench/hosttest` runs the store's record container on a PC.
 
@@ -33,5 +33,5 @@ that applies a staged asset, as the Neuro N6 FSBL does.
 `n6_asset.{h,c}` are Ohm Lab Ltd's, under the MIT licence
 (`LICENSE-MIT.txt`). `n6_asset_host.{h,c}`, the host's commands for the
 store as the USB task takes them, carry the same terms.
-`n6_ota_layout.h` is the boot loader's, under the Apache License 2.0
+`n6_ota_layout.h` is the bootloader's, under the Apache License 2.0
 (`FSBL/LICENSE`).

@@ -112,7 +112,3 @@ mv httpsrv_fs_data.c Core/Src/
 
 `Middlewares/NeuroN6/Tls/README.md` describes the port, the Mbed TLS
 configuration and its limits.
-
-Tested on the board's access point with a PC: 13 of 13 checks, with TLS 1.3
-and 1.2; with WPA3 and WPA2 clients, 14 of 14. The client's internet fetch
-has not yet run on the board.

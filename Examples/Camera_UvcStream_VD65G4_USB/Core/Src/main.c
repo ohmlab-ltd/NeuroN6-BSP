@@ -7,10 +7,17 @@
   colour; a monochrome part gets only the black level and the gamma curve.
 
   The circuit:
-  - Neuro N6 board with the VD65G4 camera (one data lane) on its carrier.
+  - Neuro N6 board with the VD65G4 camera (one data lane) on the NeuroVision
+    ST cam carrier (the default) or the thermal carrier. Set UVC_CARRIER
+    below for the carrier.
   - The carrier must pull the sensor's XSHUTDOWN pin up through under about
     9 kOhm: the sensor holds it down through roughly 20 kOhm until it boots,
     and with a 100 kOhm pull-up it stays in shutdown and answers nothing.
+
+  On the ST cam carrier the sensor's single lane reaches the N6's data lane
+  1, which ST's stock HAL cannot receive in one-lane mode. Build with this
+  repository's Drivers/ (docs/HAL-PATCHES.md, fix 3); the console says so
+  when the HAL lacks the fix.
 
   A USB console enumerates alongside the camera: send 'b' on it to return to
   the bootloader. Every five seconds it says how the camera came up.
@@ -52,11 +59,21 @@
 #define UVC_FRAME_RATE          60
 #endif
 
-/* Straight: crossing puts the sensor's single lane on a pair the carrier
- * does not route. A wrong setting gives no error, only no frames; then try
- * BSP_CAMERA_CARRIER_INVERTED, or BSP_CAMERA_VD65G4_CLOCK_LANE_SWAP and
- * _DATA_LANE_SWAP in neuron6_conf.h. */
-#define UVC_CARRIER             BSP_CAMERA_CARRIER_STANDARD
+/* The carrier: UVC_CARRIER_ST_CAM or UVC_CARRIER_THERMAL. */
+#define UVC_CARRIER_ST_CAM      0
+#define UVC_CARRIER_THERMAL     1
+#define UVC_CARRIER             UVC_CARRIER_ST_CAM
+
+#if (UVC_CARRIER != UVC_CARRIER_ST_CAM) && (UVC_CARRIER != UVC_CARRIER_THERMAL)
+#error "UVC_CARRIER must be UVC_CARRIER_ST_CAM or UVC_CARRIER_THERMAL"
+#endif
+
+/* The single lane reaches the N6's data lane 1 on the ST cam carrier (crossed,
+ * which needs the HAL fix above) and lane 0 on the thermal carrier (straight).
+ * A wrong mapping gives no error, only no frames. */
+#define UVC_LANES               ((UVC_CARRIER == UVC_CARRIER_ST_CAM) ? BSP_CAMERA_CARRIER_INVERTED \
+                                                                     : BSP_CAMERA_CARRIER_STANDARD)
+#define UVC_CARRIER_NAME        ((UVC_CARRIER == UVC_CARRIER_THERMAL) ? "thermal" : "ST cam")
 
 /* Target of the sensor's exposure loop, 0 to 100. It meters the raw picture,
  * before white balance and gamma brighten it, so a middle target overexposes. */
@@ -344,7 +361,7 @@ static int32_t video_init(void)
 
   InitStep = "sensor choice";
   status = BSP_CAMERA_VD65G4_Register();
-  if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_SetCarrier(UVC_CARRIER); }
+  if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_SetCarrier(UVC_LANES); }
   if (status != BSP_ERROR_NONE) { return status; }
 
   /* Identifies the sensor, loads its firmware and sets it up, idle. */
@@ -596,15 +613,20 @@ static void camera_report(uint32_t Frames, uint8_t Streamed)
   }
 
   (void)BSP_CAMERA_VD65G4_GetBayerOrder(&bayer);
-  print("[cam] VD65G4 %ux%u at %u fps, %s lanes: started in %lu ms from %s, now %s, %s part, filter %s, %lu frames in the last second, %lu camera errors since start (codes 0x%lx)\r\n",
+  print("[cam] VD65G4 %ux%u at %u fps, %s carrier (%s lanes): started in %lu ms from %s, now %s, %s part, filter %s, %lu frames in the last second, %lu camera errors since start (codes 0x%lx)\r\n",
         (unsigned)UVC_FRAME_WIDTH, (unsigned)UVC_FRAME_HEIGHT, (unsigned)UVC_FRAME_RATE,
-        (UVC_CARRIER == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight",
+        UVC_CARRIER_NAME, (UVC_LANES == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight",
         (unsigned long)InitMs, state_name(StateBefore), state_name(now),
         (sensor_is_mono() != 0U) ? "monochrome" : "colour", bayer_name(bayer),
         (unsigned long)Frames, (unsigned long)ErrorEvents, (unsigned long)LastErrorCode);
-  if ((Streamed == 0U) && (Frames == 0U))
+  if ((UVC_LANES == BSP_CAMERA_CARRIER_INVERTED) &&
+      (((CSI->PCR & CSI_PCR_DL1EN) == 0U) || ((CSI->PFCR & CSI_PFCR_DLD) != 0U)))
   {
-    print("[cam] no frame arrives: with the sensor streaming, the lane mapping (UVC_CARRIER) is the first suspect\r\n");
+    print("[cam] this build's HAL lacks the one-lane fix (docs/HAL-PATCHES.md): lane 1 cannot receive\r\n");
+  }
+  else if ((Streamed == 0U) && (Frames == 0U))
+  {
+    print("[cam] no frame arrives: with the sensor streaming, check UVC_CARRIER at the top of main.c\r\n");
   }
 }
 
@@ -644,8 +666,8 @@ void BSP_WDG_EWI_Callback(void)
 }
 
 /**
-  * @brief  The external memories are not cacheable: the camera and the
-  *         encoder write them behind its back.
+  * @brief  PSRAM, .noncacheable and .axisram_nc are not cacheable: the camera
+  *         and the encoder write them by DMA.
   */
 static void mpu_config(void)
 {
@@ -707,7 +729,7 @@ int main(void)
 
   HAL_Init();
 
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
 
   (void)BSP_LED_Init(LED_RED);
@@ -811,7 +833,7 @@ int main(void)
 }
 
 /**
-  * @brief  Nothing to spin for: leave the board where it can be reflashed.
+  * @brief  Return to the bootloader, where the board can be reflashed.
   */
 void Error_Handler(void)
 {

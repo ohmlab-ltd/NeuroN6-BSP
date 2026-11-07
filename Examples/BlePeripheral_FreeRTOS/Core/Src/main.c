@@ -800,7 +800,7 @@ int main(void)
 
   HAL_Init();
 
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
 
   /* Watchdog first; a watchdog reset goes to the bootloader, not back into

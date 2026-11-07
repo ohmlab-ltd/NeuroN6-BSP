@@ -6,9 +6,10 @@
 # core.autocrlf would otherwise give them.
 *.sh text eol=lf
 
-# Binaries carried for the NPU and Wi-Fi stacks, and the boot loader's
-# image: never touch their bytes.
+# Binaries carried for the NPU and Wi-Fi stacks, the boot loader's image and
+# the flash loader: never touch their bytes.
 *.a binary
 *.bin binary
 *.raw binary
 *.se binary
+*.stldr binary

@@ -13,7 +13,7 @@
 #include "stm32n6xx_hal.h"   /* UID_BASE for the unique iSerial */
 #include <string.h>
 
-// VID 0x1209 (pid.codes), PID 0x8008; the boot loader enumerates as 0x8009.
+// VID 0x1209 (pid.codes), PID 0x8008; the bootloader enumerates as 0x8009.
 // Override with -DBOARD_VENDORID=0x... -DBOARD_PRODUCTID=0x...
 #ifdef BOARD_VENDORID
   #define USB_VID  BOARD_VENDORID
@@ -245,8 +245,9 @@ enum {
 // Video probe and commit count frame intervals in 100 ns units.
 #define UVC_FRAME_INTERVAL   (10000000 / (UVC_FRAME_RATE))
 // Per-frame reservation: the uncompressed size, which no JPEG of the picture exceeds.
-#define UVC_MAX_FRAME_BYTES  ((UVC_FRAME_WIDTH) * (UVC_FRAME_HEIGHT) * 2)
-#define UVC_MIN_BITRATE      ((UVC_FRAME_WIDTH) * (UVC_FRAME_HEIGHT) * 16)
+// Unsigned: a 5 MP picture at 30 fps is 2.4 Gbit/s, past a signed 32-bit int.
+#define UVC_MAX_FRAME_BYTES  ((UVC_FRAME_WIDTH) * (UVC_FRAME_HEIGHT) * 2UL)
+#define UVC_MIN_BITRATE      ((UVC_FRAME_WIDTH) * (UVC_FRAME_HEIGHT) * 16UL)
 #define UVC_MAX_BITRATE      (UVC_MIN_BITRATE * (UVC_FRAME_RATE))
 // One isochronous packet per microframe (8 MB/s at high speed): 1023 is the largest
 // valid at both speeds. CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE must not exceed it.

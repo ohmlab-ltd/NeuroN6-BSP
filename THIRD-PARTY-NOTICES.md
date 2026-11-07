@@ -9,7 +9,7 @@ own terms, some of which are **not open source**. A directory's own licence
 file, or a file's own licence header or SPDX identifier, governs that component
 and takes precedence over `LICENSE`.
 
-Eleven ST licence files say "applicable license terms are in the
+Several ST licence files say "applicable license terms are in the
 Package_license file". No such file is carried; each of those files gives the
 terms that apply outside a package, and those are the terms used here.
 
@@ -25,13 +25,14 @@ terms that apply outside a package, and those are the terms used here.
 | `Middlewares/ST/lib_vision_models_pp/` | ST vision-model post-processing |
 | `Middlewares/NeuroN6/PostProcess/app_postprocess_nia*`, `app_postprocess_iseg_yolo_v8_ui.*`, `app_postprocess_mpe_yolo_v8_ui.*` | post-processing wrappers after ST's model zoo |
 | `Middlewares/NeuroN6/Models/*/`: `<name>.c`, `<name>_ecblobs.h`, `<name>_generate_report.txt` | the five networks as ST Edge AI Core generated them; each model's own licence also applies (§1.3, §1.5, §2.13, §2.14) |
-| `FSBL/Middlewares/ST/STM32_ExtMem_Manager/` | ST's External Memory Manager, in the boot loader |
+| `FSBL/Middlewares/ST/STM32_ExtMem_Manager/` | ST's External Memory Manager, in the bootloader |
+| `Utilities/ExternalLoader/NeuroN6_MX25UM25645G.stldr` | the STM32CubeProgrammer flash loader, built on ST's External Memory Loader (§5.6) |
 
-- **Not open source.** The `Middlewares/` paths carry SLA0044 Rev5 (February 2018); the External Memory Manager carries Rev6 (October 2025).
+- **Not open source.** The `Middlewares/` paths carry SLA0044 Rev5 (February 2018); the External Memory Manager and the flash loader carry Rev6 (October 2025).
 - **Clause 4:** the software and its derivatives may run only on, or with, a device made by or for ST.
 - **Clause 5:** no use or redistribution may subject it to open-source terms. The clause names GPL, EPL, Apache, BSD and MIT.
 - **Redistribution** must keep ST's copyright notice, the conditions and the disclaimer. A source copy keeps them in place; a binary reproduces them in its documentation, unless it is embedded in an ST device or is an update for one.
-- **Who carries it:** the first four only matter on the neural-network path. Every Neuro N6 product carries the fifth, because it is in the boot loader.
+- **Who carries it:** the first four only matter on the neural-network path. Every Neuro N6 product carries the fifth, because it is in the bootloader. The flash loader runs only while STM32CubeProgrammer programs a board.
 
 ### 1.2 NXP LA_OPT: proprietary, NXP parts only, object code only
 
@@ -143,7 +144,7 @@ Ohm Lab Model Licence 1.0 (`LICENSE-OhmLab-Model.txt`), not BSD 3-Clause. Not op
 ### 2.11 Neuro N6 asset store
 
 - **Path:** `Middlewares/NeuroN6/N6OTA/`.
-- **Licence:** MIT for `n6_asset.{h,c}` and `n6_asset_host.{h,c}` (Ohm Lab Ltd); Apache-2.0 for `n6_ota_layout.h`, the boot loader's own header, byte for byte (§5.5).
+- **Licence:** MIT for `n6_asset.{h,c}` and `n6_asset_host.{h,c}` (Ohm Lab Ltd); Apache-2.0 for `n6_ota_layout.h`, the bootloader's own header, byte for byte (§5.5).
 - **Text:** `LICENSE-MIT.txt`, `FSBL/LICENSE`.
 
 ### 2.12 NIA Triad-416 network: Ohm Lab Model Licence and SLA0044
@@ -206,13 +207,21 @@ Ohm Lab Model Licence 1.0 (`LICENSE-OhmLab-Model.txt`), not BSD 3-Clause. Not op
 - **Path:** `Middlewares/NeuroN6/Tls/`: Ohm Lab's glue and configuration, and NXP's `wm_mbedtls_net.c` from `wifi_nxp`, unmodified.
 - **Licence:** BSD-3-Clause, the NXP file by its SPDX line. **Text:** `LICENSE`; for `wm_mbedtls_net.c`, `Middlewares/NXP/wifi_nxp/LICENSE`.
 
+### 2.20 FatFs
+
+- **Path:** `Middlewares/FatFs/`. FatFs R0.16 by ChaN, from <https://elm-chan.org/fsw/ff/> (`ff16.zip`, SHA-256 `99f7dc1f7e095356e4a9e3dbe29959090d8b948afe2bbc5441e52fdf4b85449e`): `ff.c`, `ff.h`, `ffunicode.c`, `diskio.h`, `ffconf.h` and the release notes. ChaN's `diskio.c` and `ffsystem.c` are not carried.
+- **Copyright:** ChaN. **Licence:** the FatFs licence, a one-clause BSD-style licence. **Text:** `Middlewares/FatFs/LICENSE.txt` and the file headers.
+- **Modified:** `ffconf.h` only: code page 437, long file names, exFAT, no real-time clock (dates read 2026-01-01).
+- `Middlewares/NeuroN6/FatFsSd/` is Ohm Lab's disk layer (§6).
+
 ---
 
 ## 3. Components (`Components/`)
 
 ### 3.1 ST camera sensor drivers
 
-- **Paths:** `Components/ov5640/`, `Components/vd6g/` (VD66GY), `Components/vd55g1/` (VD55G1, VD55G4, VD65G4), from <https://github.com/STMicroelectronics/stm32-mw-camera>. The SLA0044 camera middleware (`cmw_*`) is not carried.
+- **Paths:** `Components/ov5640/`, `Components/vd6g/` (VD66GY), `Components/vd55g1/` (VD55G1, VD55G4, VD65G4), `Components/imx335/` (IMX335), from <https://github.com/STMicroelectronics/stm32-mw-camera>. The SLA0044 camera middleware (`cmw_*`) is not carried.
+- **IMX335:** tag `v2.0.1`, commit `e88de17d4adb3144aa31be2b558345acd1184037`, `sensors/imx335/` (driver version 1.3.2-cmw-patch), unmodified.
 - **Copyright:** STMicroelectronics. **Licence:** BSD-3-Clause. **Text:** the `LICENSE.md` in each directory.
 - **Modified:**
   - `ov5640.c` and `ov5640.h`: mode tables and MIPI bring-up for the STM32N6 (high-resolution values ported from Linux's `drivers/media/i2c/ov5640.c`), bit-wise picture controls, grey-world white balance, and the added resolution constants. ST's header is kept, and the changes are under the same terms.
@@ -230,6 +239,12 @@ Ohm Lab Model Licence 1.0 (`LICENSE-OhmLab-Model.txt`), not BSD 3-Clause. Not op
 - **Path:** `Components/vl53l1cb/vl53l1cb_st_tables.h`: the default values of registers 0x2D to 0x87 (91 bytes) from ST's VL53L1X ultra lite driver (STSW-IMG009).
 - **Copyright:** STMicroelectronics. **Licence:** BSD-3-Clause, with ST's notice in the file. **Modified:** no.
 - The rest of `Components/vl53l1cb/` is Ohm Lab's (§6). Nothing comes from ST's SLA0081 VL53L1CB driver.
+
+### 3.4 VL53L5CX ultra lite driver
+
+- **Paths:** `Components/vl53l5cx/vl53l5cx_api.c`, `vl53l5cx_api.h`, `vl53l5cx_buffers.h` (the part's firmware and default settings, which the driver loads at each start) and `LICENSE.md`, from <https://github.com/STMicroelectronics/stm32-vl53l5cx>, tag `v1.0.7`, commit `1e6b8b35b25d59f2f256d9b6b1280b026132ab85`, `modules/` (driver 1.3.9).
+- **Copyright:** STMicroelectronics. **Licence:** BSD-3-Clause (ST's changelog: "Changed licence from DUAL to full BSD3" at 1.3.6). **Text:** `Components/vl53l5cx/LICENSE.md`. **Modified:** no.
+- The porting layer, `platform.c` and `platform.h`, is Ohm Lab's (§6). ST's component wrapper, porting template and plugins are not carried.
 
 The LSM6DSL, MMC5603NJ, Lepton and VL53L1CB drivers are Ohm Lab Ltd's (§6).
 
@@ -280,12 +295,12 @@ See §1.1 and §1.5. The Wi-Fi example's radio firmware is §1.2.
 
 ### 5.2a STM32N6 HAL, CMSIS and the secure gateway library
 
-- **Path:** `Drivers/`, `Secure_nsclib/`. The HAL reports version 1.4.0. It is not ST's STM32Cube_FW_N6 V1.4.1 package: 22 C files differ from it, line endings aside.
-  - 18 are the versions STM32CubeIDE 2.2.0 ships.
+- **Path:** `Drivers/`, `Secure_nsclib/`. The HAL reports version 1.4.0. It is not ST's STM32Cube_FW_N6 V1.4.1 package: 21 C files differ from it, line endings aside.
+  - 17 are the versions STM32CubeIDE 2.2.0 ships.
   - `stm32n6xx_hal_sdio.c` carries Ohm Lab's IW610 changes, marked `STM32N6 PATCH` (also in `Utilities/hal`).
-  - `stm32n6xx_hal_dcmipp.c` carries Ohm Lab's CSI D-PHY calibration fix (`docs/HAL-PATCHES.md`).
+  - `stm32n6xx_hal_dcmipp.c` carries Ohm Lab's two CSI fixes, the D-PHY calibration and one data lane on lane 1 (`docs/HAL-PATCHES.md`).
   - `stm32n6xx_hal_xspi.c`/`.h` are another ST revision, not Ohm Lab's.
-  - The RNG driver is V1.4.1's, unchanged.
+  - The RNG and SD card drivers are V1.4.1's, unchanged.
 - **Copyright:** STMicroelectronics; Arm Limited (`Drivers/CMSIS/Include`); Ohm Lab Ltd for the changes.
 - **Licence:** BSD-3-Clause, with Ohm Lab's changes under the same terms; Apache-2.0 for Arm's CMSIS core headers.
 - **Text:** `Drivers/STM32N6xx_HAL_Driver/LICENSE.txt`, `Drivers/CMSIS/LICENSE`, and the file headers.
@@ -304,7 +319,7 @@ See §1.1 and §1.5. The Wi-Fi example's radio firmware is §1.2.
 - **Licence:** BSD-3-Clause, with Ohm Lab's changes under the same terms. **Text:** `Utilities/hal/LICENSE.txt`.
 - **Modified:** `stm32n6xx_hal_sdio.c`, as `ohmlab_readme.txt` lists.
 
-### 5.5 The first-stage boot loader
+### 5.5 The first-stage bootloader
 
 - **Path:** `FSBL/`. The Neuro N6 FSBL v2.6.2 from `ohmlab-ltd/Neuro-N6-Bootloader`. `Core/Inc/n6_ota_layout.h` adds two values shared with the application. Every example's `STM32CubeIDE/FSBL` project links these sources.
 - **Image:** `FSBL/Neuro-N6-FSBL-v2.6.2-Trusted.bin` is that repository's v2.6.2 image, unchanged: 83,744 bytes, CRC32 `0x3C092073`.
@@ -315,6 +330,13 @@ See §1.1 and §1.5. The Wi-Fi example's radio firmware is §1.2.
   - `FSBL/STM32N657I0HXQ_AXISRAM2_fsbl.ld`: ST, BSD-3-Clause.
 - **Text:** `FSBL/LICENSE`, `FSBL/Middlewares/ST/STM32_ExtMem_Manager/LICENSE.md`, and the file headers.
 
+### 5.6 Flash loader
+
+- **Path:** `Utilities/ExternalLoader/NeuroN6_MX25UM25645G.stldr`, a binary for STM32CubeProgrammer.
+- **Built from:** ST's STM32_ExtMem_Loader middleware and the STM32N6 HAL, for the Neuro N6's MX25UM25645G flash.
+- **Modified by Ohm Lab:** the device name, the debug information removed, and XSPI1's clock source set to HCLK.
+- **Licence:** **SLA0044** Rev6 (§1.1) for ST's loader code; BSD-3-Clause for the HAL. **Text:** `Utilities/ExternalLoader/LICENSE-SLA0044.md`.
+
 ---
 
 ## 6. Ohm Lab Ltd original code
@@ -323,7 +345,7 @@ Everything not listed above is Ohm Lab Ltd's, under the BSD 3-Clause licence
 in `LICENSE`, including:
 
 - the `neuron6_*` modules;
-- the LSM6DSL, MMC5603NJ, Lepton and VL53L1CB drivers;
+- the LSM6DSL, MMC5603NJ, Lepton and VL53L1CB drivers, and the VL53L5CX driver's porting layer;
 - `Utilities/port/`, and the harness tools apart from §5;
 - `Middlewares/NeuroN6/Models/*/<name>_model.c` and `model.json`;
 - `Middlewares/NeuroN6/MayaW476/firmware/firmware.json`;

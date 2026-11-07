@@ -23,10 +23,9 @@
 /* Module config for the board macro: SDIO voltage, timing, ED MAC values. */
 #include "wifi_bt_module_config.h"
 
-/* REGULATORY: 2.4 GHz only, the configuration EMC tested (Ohm Lab's EMC report,
- * available on request); at 0 the driver has no 5 GHz tables at all. The build
- * also passes -DCONFIG_5GHz_SUPPORT=0, and the two change struct layouts, so
- * they must match: re-enabling 5 GHz means removing both and re-testing EMC. */
+/* 2.4 GHz only: at 0 the driver has no 5 GHz tables at all. The build also
+ * passes -DCONFIG_5GHz_SUPPORT=0, and the two change struct layouts, so they
+ * must match: re-enabling 5 GHz means removing both. */
 #ifndef CONFIG_5GHz_SUPPORT
 #define CONFIG_5GHz_SUPPORT 0
 #endif

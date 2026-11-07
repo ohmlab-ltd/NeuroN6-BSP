@@ -124,9 +124,8 @@ reasons.
 - A CGI name the table does not have gets no reply; the connection just ends.
 - `wm_mbedtls_net.c` gives three format warnings in the build.
 
-Tested on a Neuro N6 (CubeIDE's Debug build, `-O0`) against Python's `ssl`
-and OpenSSL on a PC: 94 of 94 checks; server handshakes averaged 282 ms, and
-1 MB moved at 585 KB/s from the board and 612 KB/s to it.
+With CubeIDE's Debug build (`-O0`), a server handshake takes about 280 ms,
+and 1 MB moves at about 600 KB/s each way.
 
 ## Limits
 

@@ -78,9 +78,6 @@ Pairing's cryptography is Mbed TLS's (`Middlewares/mbedtls`), cut down by
 `include/mbedtls_config_ble.h` to AES, AES-CMAC and ECDH on P-256. It
 allocates from the FreeRTOS heap.
 
-Tested on a Neuro N6 with the TFT-W carrier against a Windows 11 PC: 57 of 60
-checks passed; the other three record what Windows does.
-
 ## Limits
 
 - **Bonds are kept in RAM.** A reset forgets them while the peer keeps its

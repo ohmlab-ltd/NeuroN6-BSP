@@ -8,8 +8,9 @@
   warmer or cooler.
 
   The circuit:
-  - Neuro N6 board with the VD66GY camera on the thermal carrier. The
-    carrier's thermal camera is not used.
+  - Neuro N6 board with the VD66GY camera on the NeuroVision ST cam carrier
+    (the default) or the thermal carrier, whose thermal camera is not used.
+    Set UVC_CARRIER below for the carrier.
 
   A USB console enumerates alongside the camera: send 'b' on it to return to
   the bootloader. Every five seconds it says how the camera came up.
@@ -49,10 +50,20 @@
 #define UVC_FRAME_RATE          60
 #endif
 
-/* The thermal carrier crosses the two data lanes; the NeuroVision carrier
- * needs BSP_CAMERA_CARRIER_STANDARD. A wrong setting gives no error, only no
- * frames, which the console reports. */
-#define UVC_CARRIER             BSP_CAMERA_CARRIER_INVERTED
+/* The carrier: UVC_CARRIER_ST_CAM or UVC_CARRIER_THERMAL. */
+#define UVC_CARRIER_ST_CAM      0
+#define UVC_CARRIER_THERMAL     1
+#define UVC_CARRIER             UVC_CARRIER_ST_CAM
+
+#if (UVC_CARRIER != UVC_CARRIER_ST_CAM) && (UVC_CARRIER != UVC_CARRIER_THERMAL)
+#error "UVC_CARRIER must be UVC_CARRIER_ST_CAM or UVC_CARRIER_THERMAL"
+#endif
+
+/* The ST cam carrier crosses the two data lanes; the thermal carrier wires
+ * them straight. A wrong mapping gives no error, only no frames. */
+#define UVC_LANES               ((UVC_CARRIER == UVC_CARRIER_ST_CAM) ? BSP_CAMERA_CARRIER_INVERTED \
+                                                                     : BSP_CAMERA_CARRIER_STANDARD)
+#define UVC_CARRIER_NAME        ((UVC_CARRIER == UVC_CARRIER_THERMAL) ? "thermal" : "ST cam")
 
 /* Target of the sensor's exposure loop, 0 to 100. It meters the raw picture,
  * before white balance and gamma brighten it, so a middle target overexposes. */
@@ -321,7 +332,7 @@ static int32_t video_init(void)
 
   InitStep = "sensor choice";
   status = BSP_CAMERA_VD66GY_Register();
-  if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_SetCarrier(UVC_CARRIER); }
+  if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_SetCarrier(UVC_LANES); }
   if (status == BSP_ERROR_NONE) { status = BSP_CAMERA_VD66GY_SetFrameRate(UVC_FRAME_RATE); }
   if (status != BSP_ERROR_NONE) { return status; }
 
@@ -575,14 +586,14 @@ static void camera_report(uint32_t Frames, uint8_t Streamed)
   }
 
   (void)BSP_CAMERA_VD66GY_GetBayerOrder(&bayer);
-  print("[cam] VD66GY %ux%u at %u fps, %s lanes: started in %lu ms from %s, now %s, filter %s, %lu frames in the last second, %lu camera errors since start (codes 0x%lx)\r\n",
+  print("[cam] VD66GY %ux%u at %u fps, %s carrier (%s lanes): started in %lu ms from %s, now %s, filter %s, %lu frames in the last second, %lu camera errors since start (codes 0x%lx)\r\n",
         (unsigned)UVC_FRAME_WIDTH, (unsigned)UVC_FRAME_HEIGHT, (unsigned)UVC_FRAME_RATE,
-        (UVC_CARRIER == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight",
+        UVC_CARRIER_NAME, (UVC_LANES == BSP_CAMERA_CARRIER_INVERTED) ? "crossed" : "straight",
         (unsigned long)InitMs, state_name(StateBefore), state_name(now), bayer_name(bayer),
         (unsigned long)Frames, (unsigned long)ErrorEvents, (unsigned long)LastErrorCode);
   if ((Streamed == 0U) && (Frames == 0U))
   {
-    print("[cam] no frame arrives: with the sensor streaming, the lane mapping (UVC_CARRIER) is the first suspect\r\n");
+    print("[cam] no frame arrives: with the sensor streaming, check UVC_CARRIER at the top of main.c\r\n");
   }
 }
 
@@ -622,8 +633,8 @@ void BSP_WDG_EWI_Callback(void)
 }
 
 /**
-  * @brief  The external memories are not cacheable: the camera and the
-  *         encoder write them behind its back.
+  * @brief  PSRAM, .noncacheable and .axisram_nc are not cacheable: the camera
+  *         and the encoder write them by DMA.
   */
 static void mpu_config(void)
 {
@@ -685,7 +696,7 @@ int main(void)
 
   HAL_Init();
 
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
 
   (void)BSP_LED_Init(LED_RED);
@@ -789,7 +800,7 @@ int main(void)
 }
 
 /**
-  * @brief  Nothing to spin for: leave the board where it can be reflashed.
+  * @brief  Return to the bootloader, where the board can be reflashed.
   */
 void Error_Handler(void)
 {

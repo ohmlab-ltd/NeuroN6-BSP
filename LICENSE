@@ -19,6 +19,7 @@
         app_postprocess_iseg_yolo_v8_ui.*, app_postprocess_mpe_yolo_v8_ui.*
       the network code ST Edge AI generated, in Middlewares/NeuroN6/Models/*/
       FSBL/Middlewares/ST/STM32_ExtMem_Manager/
+      Utilities/ExternalLoader/NeuroN6_MX25UM25645G.stldr
 
  -- NXP LA_OPT: NOT open source. Use only in products that incorporate an NXP
     part; distribution, where NXP's Software Content Register grants it, only
@@ -41,11 +42,13 @@
  -- Apache-2.0: the boot loader under FSBL/ (FSBL/LICENSE). It contains ST's
     SLA0044 External Memory Manager, listed above.
 
- -- BSD-3-Clause, MIT or Apache-2.0, third-party: the STM32N6 HAL and CMSIS
-    in Drivers/ (with Ohm Lab Ltd's changes to two HAL files), the ST camera
-    drivers, the Verisilicon VC8000NanoE encoder and ST's wrapper, FreeRTOS,
-    TinyUSB, CMSIS-DSP, lwIP with NXP's HTTP server, NXP's Wi-Fi driver, OS
-    abstraction and Mbed TLS transport (Middlewares/NeuroN6/Tls/
+ -- BSD-3-Clause, MIT, Apache-2.0 or BSD-style, third-party: the STM32N6 HAL
+    and CMSIS in Drivers/ (with Ohm Lab Ltd's changes to two HAL files), the
+    ST camera drivers, ST's VL53L5CX driver and its firmware
+    (Components/vl53l5cx/), ChaN's FatFs (Middlewares/FatFs/, its own
+    one-clause licence), the Verisilicon VC8000NanoE encoder and ST's wrapper,
+    FreeRTOS, TinyUSB, CMSIS-DSP, lwIP with NXP's HTTP server, NXP's Wi-Fi
+    driver, OS abstraction and Mbed TLS transport (Middlewares/NeuroN6/Tls/
     wm_mbedtls_net.c), Apache NimBLE and the configuration derived from it
     (Middlewares/NeuroN6/BleHost/include/syscfg/syscfg.h), Mbed TLS, and the
     patched HAL SDIO driver and HAL headers for the compile harness.

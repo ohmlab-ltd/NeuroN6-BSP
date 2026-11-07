@@ -1,4 +1,4 @@
-/* Stand-in for the Cortex-M55 core header, so the boot loader's own source
+/* Stand-in for the Cortex-M55 core header, so the bootloader's own source
  * (FSBL/Core/Src/main.c) compiles and runs on a PC against the real device
  * and HAL headers. See ../README.md.
  *

@@ -7,7 +7,7 @@
   The stream stays on USB until a Wi-Fi host connects, and returns to USB
   when it leaves. Neuro Studio finds the board by broadcast probe, as
   <name>.local over mDNS, or by the address it announces over USB. The
-  radio is 2.4 GHz only, capped at 8 dBm, as EMC-tested.
+  radio is 2.4 GHz only, capped at 8 dBm.
 
   The circuit:
   - Uses the on-board camera module (OV5640) on the 30-pin connector, and
@@ -1315,9 +1315,9 @@ static void setup(void)
   print("[WiFi] status %d, address %s, port %u\r\n",
         (int)wifi_status, MayaW476_Ipv4String(), (unsigned)WIFI_TCP_PORT);
 
-  /* The SDIO bus clock, read back: dividers 7 and 7 give 8.163 MHz, the clock
-   * the radio passed radiated emissions with (neuron6_wifi.h). Read only while
-   * clocked: reading an unclocked peripheral stalls the bus. */
+  /* The SDIO bus clock, read back: dividers 7 and 7 give 8.163 MHz
+   * (neuron6_wifi.h). Read only while clocked: reading an unclocked peripheral
+   * stalls the bus. */
   if (__HAL_RCC_SDMMC1_IS_CLK_ENABLED() != 0U)
   {
     const uint32_t kernel = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC1);
@@ -2363,8 +2363,8 @@ void BSP_WDG_EWI_Callback(void)
 }
 
 /**
-  * @brief  The external memories are not cacheable: the camera and the
-  *         encoder write them behind its back.
+  * @brief  PSRAM, .noncacheable and .axisram_nc are not cacheable: the camera
+  *         and the encoder write them by DMA.
   */
 static void mpu_config(void)
 {
@@ -2419,7 +2419,7 @@ int main(void)
 
   HAL_Init();
 
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
 
   /* The run LED: purple. */
@@ -2477,7 +2477,7 @@ int main(void)
 }
 
 /**
-  * @brief  Nothing to spin for: leave the board where it can be reflashed.
+  * @brief  Return to the bootloader, where the board can be reflashed.
   */
 void Error_Handler(void)
 {

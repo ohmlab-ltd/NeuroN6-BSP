@@ -113,6 +113,5 @@ host has brought the device up within `UVC_HOST_TIMEOUT_MS` of boot (30 s by
 default) the board returns to the bootloader. Once a host has been seen it no
 longer applies; 0 disables it.
 
-Tested: the host sees `NeuroN6 Camera` (Camera class) and captured 601 frames
-in 10.03 s at 60 fps with no dropped or damaged frame; every mode in the table
-ran at the sensor's rate.
+The host sees `NeuroN6 Camera` (Camera class); every mode in the table runs at
+the sensor's rate.

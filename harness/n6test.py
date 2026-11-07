@@ -69,13 +69,19 @@ COMMANDS = [
     # buffer, and the dump would read as a truncated, longer picture.
     ("jpegmem", 30), ("jpegdump", 120), ("jpeggap", 40), ("jpegrun", 40), ("jpegtorn", 30),
     ("thermal", 20), ("vospi", 15),
+    # The B-CAMS-IMX module on its adapter: the bcams commands skip without it.
+    ("i2cscan", 15), ("bcams", 20), ("bcamstof", 30), ("bcamslink", 60), ("bcamspipe", 60),
 ]
 
 # Not in the default run: the MAYA-W476 driver is FreeRTOS only, so the Wi-Fi
 # example exercises it. With --only, "wifi" stops at SDIO enumeration and "bt"
 # reports SKIP: the controller runs only once the Wi-Fi stack has loaded its
-# firmware (see board-tests/STATUS.md).
+# firmware.
 WIRELESS = [("wifi", 40), ("bt", 30)]
+
+# Not in the default run: they write the SD card (sd saves and restores its
+# last 1 MB; sdfat writes and deletes a file). With --only.
+SDCARD = [("sd", 120), ("sdfat", 60)]
 
 
 # The eight bars jpegmem draws, left to right, as the RGB a decoder should
@@ -99,6 +105,7 @@ def check_jpegdump(lines, path):
         data = bytes.fromhex(hexdata)
     except ValueError as e:
         return False, "hex decode: %s" % e
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "wb") as f:
         f.write(data)
     try:
@@ -183,7 +190,7 @@ def main():
     only = set(filter(None, args.only.split(",")))
     skip = set(filter(None, args.skip.split(",")))
     todo = [(c, t) for c, t in COMMANDS if (not only or c in only) and c not in skip]
-    todo += [(c, dict(WIRELESS).get(c, 20)) for c in only if c not in dict(COMMANDS)]  # wireless, bkpclr, wdgfire
+    todo += [(c, dict(WIRELESS + SDCARD).get(c, 20)) for c in only if c not in dict(COMMANDS)]  # wireless, SD, bkpclr, wdgfire
 
     several = n6flash.several_boards()
     if several:

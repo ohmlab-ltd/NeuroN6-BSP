@@ -1,8 +1,8 @@
 # The VD66GY as a USB camera
 
-Streams the VD66GY global-shutter camera on the thermal carrier as a standard
-USB video device: Motion-JPEG, 640 x 480, 60 fps, on an isochronous endpoint,
-with no driver needed on the host.
+Streams the VD66GY global-shutter camera, on the NeuroVision ST cam carrier or
+the thermal carrier, as a standard USB video device: Motion-JPEG, 640 x 480,
+60 fps, on an isochronous endpoint, with no driver needed on the host.
 
 ```
 VD66GY --CSI-2, RAW8--> DCMIPP pipe 1 --band in AXISRAM--> VENC --JPEG--> UVC --> host
@@ -14,21 +14,34 @@ VD66GY --CSI-2, RAW8--> DCMIPP pipe 1 --band in AXISRAM--> VENC --JPEG--> UVC --
 The transport (descriptors, capture loop, encoder pacing) is
 [Camera_UvcStream_USB](../Camera_UvcStream_USB/)'s.
 
+## The carrier
+
+One line at the top of `main.c` picks it:
+
+```c
+#define UVC_CARRIER             UVC_CARRIER_ST_CAM   /* or UVC_CARRIER_THERMAL */
+```
+
+| carrier | data lanes | N6 setting |
+|---|---|---|
+| NeuroVision ST cam (default) | crossed | `BSP_CAMERA_CARRIER_INVERTED` |
+| thermal | straight | `BSP_CAMERA_CARRIER_STANDARD` |
+
+The VD65G4 takes the same setting on each carrier. A wrong carrier gives no
+error: the sensor streams and no frame arrives, and the console says to check
+`UVC_CARRIER`.
+
 ## The sensor
 
-`main.c` registers the sensor and the carrier before `BSP_CAMERA_Init`:
+`main.c` registers the sensor and the lane mapping before `BSP_CAMERA_Init`:
 
 ```c
 BSP_CAMERA_VD66GY_Register();
-BSP_CAMERA_SetCarrier(BSP_CAMERA_CARRIER_INVERTED);
+BSP_CAMERA_SetCarrier(UVC_LANES);           /* follows UVC_CARRIER */
 BSP_CAMERA_VD66GY_SetFrameRate(UVC_FRAME_RATE);
 BSP_CAMERA_Init(0, BSP_CAMERA_VD66GY_R640x480, BSP_CAMERA_PF_RAW8);
 ```
 
-- **Carrier:** the thermal carrier crosses the two data lanes (`INVERTED`);
-  the NeuroVision carrier wires them straight (`STANDARD`). A wrong setting
-  gives no error: the sensor streams and no frame arrives. Change
-  `UVC_CARRIER` at the top of `main.c`.
 - **Colour is made on the chip.** The sensor sends raw readings under its
   colour filter; `isp_config()` sets pipe 1's stages from ST's daylight (D65)
   tuning for this module (STEVAL-66GYMAI1): right under daylight, warm under
@@ -72,11 +85,11 @@ size:
 #define UVC_FRAME_RATE                  60
 ```
 
-The `Appli` project adds to the OV5640 example's: `neuron6_camera_vd66gy.c`
-and `.h` (linked from the repository root; ST's `Components/vd6g/vd6g.c` is
-compiled already and includes its firmware images), and `NDEBUG`, because
-ST's driver asserts on reachable error paths and a failed assertion is a
-silent loop.
+Compared with the OV5640 example, the `Appli` project adds
+`neuron6_camera_vd66gy.c` and `.h` (linked from the repository root; ST's
+`Components/vd6g/vd6g.c` is compiled already and includes its firmware
+images), and `NDEBUG`, because ST's driver asserts on reachable error paths
+and a failed assertion is a silent loop.
 
 ## The other modes
 
@@ -87,8 +100,8 @@ holds the largest frame.
 
 | mode | top rate | band | JPEG buffer |
 |---|---|---|---|
-| 320 x 240 | 88 | 81920 | 512 KB |
-| 640 x 480 | 88 | 81920 | 512 KB |
+| 320 x 240 | 88 | 81920 | 256 KB |
+| 640 x 480 | 88 | 81920 | 256 KB |
 | 480 x 640 | 88 | 122880 | 512 KB |
 | 1024 x 768 | 60 | 262144 | 512 KB |
 | 768 x 1024 | 60 | 196608 | 512 KB |
@@ -102,7 +115,7 @@ holds the largest frame.
 - The 1120-pixel modes read each line in 9.5 us rather than 7.7 us, so the
   encoder keeps up.
 - With the sensor's random test pattern, the largest modes run below their
-  top rate, limited by the isochronous endpoint (about 8 MB/s).
+  top rate, limited by the isochronous endpoint (about 7 to 8 MB/s).
 
 ## Console
 
@@ -110,7 +123,7 @@ Every second the `[uvc]` line (frames encoded, sent, torn, failed); every five
 seconds a `[cam]` line:
 
 ```
-[cam] VD66GY 640x480 at 60 fps, crossed lanes: started in 38 ms from ready to start, now streaming, filter GRBG, 60 frames in the last second, 2 camera errors since start (codes 0x10)
+[cam] VD66GY 640x480 at 60 fps, ST cam carrier (crossed lanes): started in 38 ms from ready to start, now streaming, filter GRBG, 60 frames in the last second, 2 camera errors since start (codes 0x10)
 ```
 
 - **Frames about 60, errors steady:** the picture reaches the chip. One pipe
@@ -150,6 +163,3 @@ bash harness/examples/cubebuild.sh Camera_UvcStream_VD66GY_USB
 `STM32CubeIDE/Appli/Debug/Camera_UvcStream_VD66GY_USB_Appli_Trusted.bin`
 writes the application slot; `python harness/examples/runex.py
 Camera_UvcStream_VD66GY_USB` uploads it, watches the console and sends `b`.
-
-Tested on a thermal carrier: 1206 frames captured by ffmpeg in 20 s, every one
-decoded; every mode above runs at its top rate on a room scene.

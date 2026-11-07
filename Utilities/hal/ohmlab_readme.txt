@@ -29,10 +29,27 @@
   are unmodified vendor sources.
 
 
+### 02-Nov-2026 ###
+=========================
+  + Receive one CSI-2 data lane on physical lane 1
+     in \Src\stm32n6xx_hal_dcmipp.c  (function HAL_DCMIPP_CSI_SetConfig,
+                                      around line 746)
+
+    In one-lane mode the stock code enabled only D-PHY data lane 0, so a
+    sensor whose single lane is wired to lane 1 (inverted data-lane mapping)
+    produced no frames. Lane 1 also runs only with lane 0 enabled, and
+    lane 0's unconnected inputs then break its synchronisation.
+
+    Fix: for one lane with DCMIPP_CSI_INVERTED_DATA_LANES, enable both data
+    lanes and set lane 0 to transmit (CSI_PFCR_DLD clear; DLD set is receive,
+    the opposite of the reference manual's description). Other lane
+    configurations are unchanged.
+
+
 ### 31-May-2026 ###
 =========================
   + Fix D-PHY DLL target-oscillation-frequency programming
-     in \Src\stm32n6xx_hal_dcmipp.c  (function DCMIPP_CSI_SetDPHYConfig,
+     in \Src\stm32n6xx_hal_dcmipp.c  (function HAL_DCMIPP_CSI_SetConfig,
                                       around line 737)
 
     The stock sequence wrote BOTH bytes of osc_freq_target to CSI D-PHY test

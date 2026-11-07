@@ -13,9 +13,9 @@ licence (`LICENSE-MIT.txt`).
 - The CPU's AXISRAM pools have no size, so a network never takes memory the
   application uses.
 - The weights sit above the application slot (from `0x90100000`) and end at
-  `0x91C80000`, where the boot loader's slot B starts
+  `0x91C80000`, where the bootloader's slot B starts
   (`docs/BOOT-CONTRACT.md`).
-- The PSRAM pool ends at `0x71E00000`, where the boot loader's staging area
+- The PSRAM pool ends at `0x71E00000`, where the bootloader's staging area
   starts. A network that uses it needs the application's own PSRAM data to
   end below `0x71000000`. The generate report says how much of each pool a
   network uses.

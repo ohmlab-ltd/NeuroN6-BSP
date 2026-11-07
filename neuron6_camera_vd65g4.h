@@ -22,8 +22,9 @@ extern "C" {
 
 /* 0.56 MP colour global shutter, 804 x 704 RAW8 on one CSI-2 data lane; the driver
  * (Components/vd55g1) is ST's, unmodified.
- * Address, clock, lane rate and polarity default to the VD66GY module's, but with one
- * data lane a carrier that crosses the VD66GY's pair must not cross this one.
+ * Address, clock, lane rate and polarity default to the VD66GY module's, and so does the
+ * carrier setting: INVERTED on the ST cam carrier, which crosses the pair and puts this
+ * single lane on the N6's lane 1 (the HAL's one-lane fix), STANDARD on the thermal carrier.
  * The part holds XSHUTDOWN low through ~20 kOhm until it boots: the carrier must pull
  * it up through < ~9 kOhm, or the sensor stays in shutdown and answers on no bus. */
 

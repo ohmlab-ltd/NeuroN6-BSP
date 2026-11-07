@@ -317,7 +317,7 @@ int main(void)
     CHECK(n6_asset_stage("y", 1, 0));
     CHECK(fsbl() == 1 && user_is("y"));
 
-    /* nor one that is not armed, or whose header the boot loader would refuse */
+    /* nor one that is not armed, or whose header the bootloader would refuse */
     img->size    = N6_OTA_MAX_LOADABLE;
     img->hdr_crc = n6_ota_crc32(0, (uint8_t *)img, 16);
     (&TAMP->BKP0R)[N6_OTA_TRIGGER_BKPR] = 0;
@@ -330,11 +330,11 @@ int main(void)
     (&TAMP->BKP0R)[N6_OTA_TRIGGER_BKPR] = 0;
   }
 
-  /* 16. the result the boot loader leaves when it could not read the store */
+  /* 16. the result the bootloader leaves when it could not read the store */
 
   /* 17. the trigger is armed with backup-domain writes enabled: with them
    *     protected, as nothing promises they are not, the write does nothing
-   *     and the boot loader never applies the update */
+   *     and the bootloader never applies the update */
   g_pwr.DBPCR = 0U;
   CHECK(n6_asset_stage("v", 1, 0));
   CHECK((g_pwr.DBPCR & PWR_DBPCR_DBP) != 0U);

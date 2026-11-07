@@ -208,7 +208,7 @@
 #define BACKOFF_MAX_MS          600000U
 
 /* Backup registers for the restart record: kept through a reset, not a power
- * cut. 0 to 7, 15, 16 and 20 to 22 belong to the boot loader, the console,
+ * cut. 0 to 7, 15, 16 and 20 to 22 belong to the bootloader, the console,
  * the fault handlers, the asset store and updates. */
 #define BKP_RESTARTS            24U   /* restarts in a row, under a magic */
 #define BKP_CAUSE               25U   /* why, under a magic, written last */
@@ -1617,9 +1617,9 @@ static void setup(void)
     restart_board(RESTART_RADIO_START, (uint32_t)wifi_status, "radio");
   }
 
-  /* The SDIO bus clock, read back: dividers of 7 and 7 give 8.163 MHz, the
-   * clock the radio passed radiated emissions with (neuron6_wifi.h). Read
-   * only while clocked: reading an unclocked peripheral stalls the bus. */
+  /* The SDIO bus clock, read back: dividers of 7 and 7 give 8.163 MHz
+   * (neuron6_wifi.h). Read only while clocked: reading an unclocked peripheral
+   * stalls the bus. */
   if (__HAL_RCC_SDMMC1_IS_CLK_ENABLED() != 0U)
   {
     const uint32_t kernel = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_SDMMC1);
@@ -2916,7 +2916,7 @@ int main(void)
   HAL_Init();
   BootMs = HAL_GetTick();
 
-  /* No SystemClock_Config: the boot loader owns the clock tree and both
+  /* No SystemClock_Config: the bootloader owns the clock tree and both
    * external memories; the BSP reads the frequencies back at run time. */
 
   /* The run LED: purple while the board starts. */

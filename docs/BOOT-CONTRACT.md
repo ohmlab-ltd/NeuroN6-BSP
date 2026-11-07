@@ -1,6 +1,6 @@
 # The Neuro N6 boot contract
 
-The board's first-stage boot loader (FSBL) runs before the application. Its
+The board's first-stage bootloader (FSBL) runs before the application. Its
 source is in `FSBL/` (Apache-2.0; ST's External Memory Manager in it is
 SLA0044, see `THIRD-PARTY-NOTICES.md` §5.5). This document says what the
 application may rely on at entry, and what it must not touch.
@@ -30,7 +30,7 @@ application may rely on at entry, and what it must not touch.
 
 - **Why the delay matters:** at 200 MHz with the DLL's own calibrated DQS delay, mapped reads drop 1-bits silently. The NPU then reads wrong weights, and the radio rejects its firmware.
 - **What the FSBL does:** it sets a DQS input delay of fine 16, coarse 3 (`CALSIR`), mid-window. Before jumping it switches to prescaler 0 and reads once so the DLL calibrates, reads the image's first 64 KB, maps the flash, and writes the delay after the mapping's commands. If any step fails it returns to prescaler 1.
-- **Unchecked at boot:** the window was measured on one board at room temperature, and v2.6.2 does not test it at boot.
+- **Unchecked at boot:** v2.6.2 does not test the window at boot.
 - **Do not reconfigure XSPI1.** The delay holds only if written after the command that uses it, and a wrong value corrupts every later read with no error.
 
 ## Flash map (NOR window `0x90000000`)
@@ -67,7 +67,7 @@ application may rely on at entry, and what it must not touch.
 | 0, 3 to 10 | application | its own records |
 | 1, 2 | both | time of the last start; the key that asks for the bootloader |
 | 11 to 13 | none | |
-| 14 | boot loader | reserved; applications must not write it |
+| 14 | bootloader | reserved; applications must not write it |
 | 15, 16 | both | result of a settings write; the request for one |
 | 17 to 19 | none | |
 | 20, 21, 22 | both | update request, confirmation, result |

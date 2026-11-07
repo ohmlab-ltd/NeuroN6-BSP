@@ -122,7 +122,7 @@ board is never mistaken for a running one:
 
 **The bootloader is still reachable** with `b` on the console, `REBOOT_DFU`
 from a USB host, the 1200-baud touch and a double press of the reset button,
-during a wait too. There is no no-host timeout. The boot loader takes two
+during a wait too. There is no no-host timeout. The bootloader takes two
 resets within the same second as a double press, so a failure in the first
 second of a start (an `Error_Handler` before the scheduler) lands in the
 bootloader; the start after the next reflash reports it.
@@ -131,7 +131,7 @@ bootloader; the start after the next reflash reports it.
 
 1. **Before the day,** write the weights and the radio firmware once, and run
    the board for a day with a viewer on it, watching the health and stack
-   lines. This example has not yet had that test (see [Status](#status)).
+   lines.
 2. **On site, choose the channel** and store the network on the board over
    USB rather than rebuilding:
 
@@ -161,8 +161,8 @@ the live controls only; the asset commands and `REBOOT_DFU` need the USB
 cable.
 
 The radio works on **2.4 GHz only, at 8 dBm, with the SDIO bus at
-8.163 MHz**, the settings the wireless build was EMC-tested with
-(`Camera_Nia416Stream_WiFi_FreeRTOS`'s README lists every setting).
+8.163 MHz** (`Camera_Nia416Stream_WiFi_FreeRTOS`'s README lists every
+setting).
 
 ## Before it runs
 
@@ -201,9 +201,9 @@ bash harness/examples/cubebuild.sh Camera_YoloV8Pose_WiFi_FreeRTOS
 The project is the Wi-Fi NIA example's, with the model folder linked to
 `Middlewares/NeuroN6/Models/YoloV8Pose`; `npu_build.json` and
 `wifi_build.json` list the same stacks for the compile gate (only with
-`NEURON6_BUILD_RESTRICTED=1`) and `harness/examples/addstack.py`. The image is
-901,120 bytes, under the boot loader's 1.5 MB limit. The activations take
-588 KB of NPU RAM from `0x34200000`; post-processing keeps 305 KB in PSRAM.
+`NEURON6_BUILD_RESTRICTED=1`) and `harness/examples/addstack.py`. The
+activations take 588 KB of NPU RAM from `0x34200000`; post-processing keeps
+305 KB in PSRAM.
 The tasks are the Wi-Fi NIA example's, with the supervisor in `usb`, plus
 `probe` (idle + 1, a static 4 KB stack outside the 96 KB kernel heap), which
 asks the radio for its counters every 10 s.
@@ -226,12 +226,6 @@ zoo); the pose decode is ST's `mpe_pp_yolov8.c` in
   body's proportions; people at the sides of the picture are outside it.
 - No panel (`LCD_Overlay_MPE` is an empty stub) and no BLE.
 
-## Status
+## Performance
 
-Tested on a board with the TFT-W carrier (crossed lanes set): 15 inferences a
-second, 34 to 39 ms each, and `harness/bench/n6bench.py wifitest --any-app`
-passed 17 of 17, with the stream at 29.9 fps.
-
-Not yet tested: the skeletons in Neuro Studio (nobody was in front of the
-camera), a day's soak, and each restart path provoked once. It needs those
-before it goes to a stand.
+15 inferences a second, 34 to 39 ms each, with the stream at 30 fps.

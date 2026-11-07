@@ -98,7 +98,7 @@ int32_t BSP_COM_Printf(const char *Format, ...);
 void BSP_COM_Flush(uint32_t Timeout_ms);
 
 /**
-  * @brief  Reset into the boot loader's DFU mode.
+  * @brief  Reset into the bootloader's DFU mode.
   * @note   Cancels a firmware update or settings staged with N6OTA and not yet applied.
   */
 void BSP_COM_RebootToBootloader(void);

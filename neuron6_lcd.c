@@ -964,7 +964,7 @@ int32_t BSP_LCD_GetYSize(uint32_t Instance, uint32_t *YSize)
 
 /**
   * @brief  Set the refresh rate in Hz, BSP_LCD_REFRESH_RATE_MIN..MAX; others are refused.
-  * @note   PLL4 is read back, not assumed: boot loaders set it differently.
+  * @note   PLL4 is read back, not assumed: bootloaders set it differently.
   * @note   Lower the rate if BSP_LCD_GetStatus() reports underruns. A change while
   *         scanning can disturb a frame or two.
   */

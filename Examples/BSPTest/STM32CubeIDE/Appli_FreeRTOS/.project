@@ -560,5 +560,55 @@
 			<type>1</type>
 			<locationURI>PARENT-4-PROJECT_LOC/Common/Linker/STM32N657I0HXQ_ROMxspi3_RAMxspi1xspi2.ld</locationURI>
 		</link>
+		<link>
+			<name>BSP/neuron6_sd.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_sd.c</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_sd.h</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_sd.h</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_camera_imx335.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_camera_imx335.c</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_camera_imx335.h</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_camera_imx335.h</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_ranging_vl53l5cx.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_ranging_vl53l5cx.c</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_ranging_vl53l5cx.h</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_ranging_vl53l5cx.h</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_camera_ae.c</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_camera_ae.c</locationURI>
+		</link>
+		<link>
+			<name>BSP/neuron6_camera_ae.h</name>
+			<type>1</type>
+			<locationURI>PARENT-4-PROJECT_LOC/neuron6_camera_ae.h</locationURI>
+		</link>
+		<link>
+			<name>Middlewares/FatFs</name>
+			<type>2</type>
+			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/FatFs/source</locationURI>
+		</link>
+		<link>
+			<name>Middlewares/NeuroN6/FatFsSd</name>
+			<type>2</type>
+			<locationURI>PARENT-4-PROJECT_LOC/Middlewares/NeuroN6/FatFsSd</locationURI>
+		</link>
 </linkedResources>
 </projectDescription>

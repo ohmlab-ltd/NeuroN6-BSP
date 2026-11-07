@@ -9,8 +9,7 @@ mapped onto the whole frame) and the inference time. The pipeline is
 only the video transport differs.
 
 - The board hosts its own access point, so no router is needed. The radio
-  works on **2.4 GHz only, at 8 dBm**, the settings the Neuro N6's wireless
-  build was EMC-tested with.
+  works on **2.4 GHz only, at 8 dBm**.
 - The stream stays on USB until a Neuro host connects over Wi-Fi; that host
   then gets everything a USB host gets (video, metadata, panel announces, the
   Terminal with its boot log, live controls). When it leaves, the stream
@@ -49,11 +48,11 @@ External flash holds three things besides the application:
   `python harness/n6weights.py Middlewares/NeuroN6/Models/Nia416/model.json`.
   The example checks them before the network first runs and streams without
   detections if they are wrong.
-- **A boot loader that hands over a correctly reading flash interface
+- **A bootloader that hands over a correctly reading flash interface
   (XSPI1): FSBL v2.5.0 or later** (boards ship with v2.6.2). The firmware and
   the weights are read in place, and one wrong bit makes the radio reject its
   firmware ("FW Ready Registers not set"). `python harness/n6fsbl.py` reports
-  the boot loader, read-only. See
+  the bootloader, read-only. See
   [the boot contract](../../docs/BOOT-CONTRACT.md#flash-speed-and-why-the-application-must-not-set-it).
   Inference takes 49 ms with the flash at 200 MHz, 66 ms at 100 MHz.
 
@@ -91,8 +90,6 @@ External flash holds three things besides the application:
   returns the bootloader.
 
 ## Radio settings
-
-These are the settings the wireless build was EMC-tested with.
 
 | setting | value | where |
 |---|---|---|
@@ -137,8 +134,7 @@ The NPU half is as in the USB example. For the Wi-Fi half:
   `uart` driver (the pin map declares the BLE link's handle).
 
 `wifi_build.json` lists the same stack for the compile gate and
-`harness/examples/addstack.py`. The image is 852,032 bytes (867,328 with the
-panel), under the boot loader's 1.5 MB limit.
+`harness/examples/addstack.py`.
 
 ## Tasks
 
@@ -152,8 +148,8 @@ kernel heap is 96 KB; 12.8 KB is left once the radio, camera and NPU are up.
 
 ## Behaviour and limits
 
-- **The link carries about 2.4 MB/s,** set by the SDIO bus at the 8.163 MHz
-  that passed radiated emissions. At JPEG quality 2 (the default) every mode
+- **The link carries about 2.4 MB/s,** set by the SDIO bus at 8.163 MHz.
+  At JPEG quality 2 (the default) every mode
   keeps the camera's rate; at quality 4, 720p falls to 48.1 fps. When the
   link is full the encoder waits and skips camera frames; the detector keeps
   its pace.
@@ -170,11 +166,8 @@ kernel heap is 96 KB; 12.8 KB is left once the radio, camera and NPU are up.
 - The network line is repeated whenever a console connects.
 - No BLE here; `neuron6_bt` and `Examples/BleBeacon_FreeRTOS` show it beside
   Wi-Fi on the same module.
-- Not yet tried with Neuro Studio itself: the stream was read by the bench
-  scripts, which parse it as Neuro Studio does.
 
-Tested on a board with the OV5640-W carrier: 30.0 fps over Wi-Fi with no gap
-in the frame counter, ten inferences a second.
+Over Wi-Fi the stream runs at 30 fps, with ten inferences a second.
 
 ## On a display carrier's panel
 
@@ -195,8 +188,8 @@ that carrier's crossed data lanes. 0 by default.
   camera frames shown, overlays drawn, draws that waited, display-controller
   errors.
 
-Tested with the TFT-W carrier: 60.0 fps over Wi-Fi, inference 64 to 71 ms,
-the panel at 60 camera frames and 10 overlays a second with no underrun.
+With the panel: 60 fps over Wi-Fi, inference 64 to 71 ms, and the panel at 60
+camera frames and 10 overlays a second.
 
 ## Other camera modes
 

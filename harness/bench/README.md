@@ -10,8 +10,8 @@ USB vendor interface, over Wi-Fi and over the console.
 | `n6radiotest.py` | Checks the radio diagnostics and BLE scanning and advertising on `Examples/WiFiApi_FreeRTOS`. Windows; the BLE phases need `n6radio.exe`. |
 | `n6btpower.py` | Has `Examples/WiFiApi_FreeRTOS` read back its BLE transmit power (advertising, extended advertising on each PHY, a power command asking 20 dBm, a connection from this PC) and checks every level in use against the 8 dBm cap. Windows; needs `n6radio.exe`. |
 | `n6radio.cs`, `build_n6radio.py` | This PC's radios as fixtures, through the Windows Runtime: BLE scan, GATT checks and a Wi-Fi Direct group owner for station mode. Built with the .NET Framework's own compiler into the temp folder; nothing on the PC is changed beyond the run. |
-| `hosttest/` | Host tests, against this repository's copies, of the asset store's record container and SHA-256/HMAC, the BLE transmit power policy, the Lepton's video parser, the thermal module's power-up, boot wait and video restarts, and the YOLOv8 segmentation metadata: `sh harness/bench/hosttest/run.sh` (on Windows, from WSL). |
-| `hosttest/fsbl/` | The boot loader's own source on a simulated board, the uploader against it, and its USB descriptors: `sh harness/bench/hosttest/fsbl/run.sh` (Linux, or WSL). See its README. |
+| `hosttest/` | Host tests, against this repository's copies, of the asset store's record container and SHA-256/HMAC, the BLE transmit power policy, the Lepton's video parser, the thermal module's power-up, boot wait and video restarts, the YOLOv8 segmentation metadata, and the camera's auto-exposure and white-balance steps: `sh harness/bench/hosttest/run.sh` (on Windows, from WSL). |
+| `hosttest/fsbl/` | The bootloader's own source on a simulated board, the uploader against it, and its USB descriptors: `sh harness/bench/hosttest/fsbl/run.sh` (Linux, or WSL). See its README. |
 
 With `--any-app`, `wifitest` and `usbtest` check any Neuro N6 streaming
 application; the checks that need the bench firmware are skipped.

@@ -143,7 +143,7 @@ static int32_t Wifi_ConfigureHost(void)
   BSP_WIFI_SDIO_DATA_CLK_ENABLE();
   BSP_WIFI_SDIO_CMD_CLK_ENABLE();
 
-  /* High, not very high, speed on every line: the EMC-tested setting (softer edges). */
+  /* High, not very high, speed on every line (softer edges). */
   gpio_init_structure.Mode      = GPIO_MODE_AF_PP;
   gpio_init_structure.Pull      = GPIO_NOPULL;
   gpio_init_structure.Speed     = GPIO_SPEED_FREQ_HIGH;

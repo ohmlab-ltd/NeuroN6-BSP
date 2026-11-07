@@ -476,11 +476,10 @@ int sdio_drv_init(void (*cd_int)(int))
         return -WM_FAIL;
     }
 
-    /* Transfer clock; read-modify-write keeps WIDBUS.
-     * EMC: do not change without retesting radiated emissions. Harmonics land
-     * on 200 MHz when N = IC4 x (2 x CLKDIV) is divisible by 4, so IC4
+    /* Transfer clock; read-modify-write keeps WIDBUS. Harmonics land on
+     * 200 MHz when N = IC4 x (2 x CLKDIV) is divisible by 4, so IC4
      * (maya_w4_hw.c) and CLKDIV must both be odd. IC4 = 7, CLKDIV = 7: N = 98,
-     * a free-running 8.163 MHz, the tested clock (about 2.4 MB/s of stream). */
+     * a free-running 8.163 MHz (about 2.4 MB/s of stream). */
     #define MAYA_W4_SDIO_XFER_CLKDIV   (0x07U)   /* kernel/14 = 8.163 MHz */
     {
         uint32_t clkcr = SDMMC1->CLKCR;

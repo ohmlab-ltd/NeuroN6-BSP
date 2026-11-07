@@ -1,11 +1,7 @@
 /**
   ******************************************************************************
-  * @file    neuron6_conf_template.h
-  * @brief   Neuro N6 BSP configuration template.
-  *
-  *          Copy this file into your application as `neuron6_conf.h` and edit
-  *          it there: every BSP header includes "neuron6_conf.h". The template
-  *          itself is never included.
+  * @file    neuron6_conf.h
+  * @brief   The example's BSP configuration, from neuron6_conf_template.h.
   ******************************************************************************
   * @attention
   *
@@ -108,8 +104,8 @@
 /* Camera carrier */
 
 /* Which carrier the image sensor sits on, and so how its data pair is wired:
- * the display carrier crosses it. A wrong setting gives no error, only no
- * frames. An application for both carriers calls BSP_CAMERA_SetCarrier. */
+ * the display and ST cam carriers cross it. A wrong setting gives no error,
+ * only no frames. Code for several carriers calls BSP_CAMERA_SetCarrier. */
 /* #define BSP_CAMERA_DEFAULT_CARRIER   BSP_CAMERA_CARRIER_INVERTED */
 
 /* Motion sensor: the output rates (Hz) and full scales (g, dps) that
@@ -119,6 +115,15 @@
 /* #define MOTION_SENSOR_ACC_DEFAULT_FS     2 */
 /* #define MOTION_SENSOR_GYRO_DEFAULT_FS    245 */
 
+/* Multizone ranging: the VL53L5CX on ST's B-CAMS-IMX module, whose LPn and INT
+ * lines Ohm Lab's B-CAMS-IMX adapter brings to PA9 and PA11 (bcamstof). */
+#define BSP_RANGING_VL53L5CX_LPN_PORT          GPIOA
+#define BSP_RANGING_VL53L5CX_LPN_PIN           GPIO_PIN_9
+#define BSP_RANGING_VL53L5CX_LPN_CLK_ENABLE()  __HAL_RCC_GPIOA_CLK_ENABLE()
+#define BSP_RANGING_VL53L5CX_INT_PORT          GPIOA
+#define BSP_RANGING_VL53L5CX_INT_PIN           GPIO_PIN_11
+#define BSP_RANGING_VL53L5CX_INT_CLK_ENABLE()  __HAL_RCC_GPIOA_CLK_ENABLE()
+
 /* Radio module */
 
 /* Where the radio firmware image lives in memory-mapped flash (fixed by the
@@ -126,9 +131,8 @@
 /* #define BSP_WIFI_FIRMWARE_BASE       0x91E00000U */
 
 /* SDIO dividers for the radio: enumeration at 446 kHz (the card specification
- * asks for 400 kHz) and transfers at 8.163 MHz, the clock the radio passed
- * radiated emissions with. The transfer divider must stay odd (see
- * neuron6_wifi.h): do not change it without testing emissions again. */
+ * asks for 400 kHz) and transfers at 8.163 MHz. The transfer divider must stay
+ * odd (see neuron6_wifi.h). */
 /* #define BSP_WIFI_SDIO_INIT_DIV       0x80U */
 /* #define BSP_WIFI_SDIO_TRANSFER_DIV   0x07U */
 

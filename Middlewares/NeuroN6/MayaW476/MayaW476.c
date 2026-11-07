@@ -1277,7 +1277,7 @@ const char *MayaW476_DevicePassword(void)
     return s_pass;
   }
 
-  /* A stage the boot loader left, or its error, means a restart would not
+  /* A stage the bootloader left, or its error, means a restart would not
    * store it either. */
   last = n6_asset_last_result();
   if (n6_asset_pending() || ((last != 0U) && (last != N6_ASSET_RESULT_OK)) ||

@@ -33,7 +33,7 @@ repository's BSD-3-Clause licence; `THIRD-PARTY-NOTICES.md` lists everything.
 
 ## Building and flashing
 
-The application goes to the boot loader's application slot, the weights to
+The application goes to the bootloader's application slot, the weights to
 the network pool in external flash at `0x90300000`.
 
 ```bash
@@ -77,5 +77,5 @@ largest frame). The network's crop follows the mode.
 | 1080p | 491520 | 1.5 MB | 30 fps |
 | QSXGA | 331776 | 1.5 MB | 15 fps |
 
-Tested on a board with the OV5640 at XGA: 15 inferences a second, 26 ms each,
-alongside the 30 fps stream.
+At XGA it runs 15 inferences a second, 26 ms each, alongside the 30 fps
+stream.

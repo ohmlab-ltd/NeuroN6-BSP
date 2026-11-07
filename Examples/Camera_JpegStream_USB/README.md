@@ -38,12 +38,12 @@ The CubeIDE projects under `STM32CubeIDE/` share `Core/`:
 - `Appli_FreeRTOS`: `Appli` plus what `Utilities/freertos/README.md` lists;
   `BSP_USE_FREERTOS=1` also enables the HAL's TIM driver in
   `stm32n6xx_hal_conf.h`.
-- `FSBL`: the boot loader, as in every example.
+- `FSBL`: the bootloader, as in every example.
 
 Import them into STM32CubeIDE 2.2.0 and build `Debug`, or build all three with
 `bash harness/examples/cubebuild.sh Camera_JpegStream_USB`. Upload with
 `harness/n6flash.py`, which writes the application slot with the header the
-boot loader expects (`docs/BOOT-CONTRACT.md`).
+bootloader expects (`docs/BOOT-CONTRACT.md`).
 
 - Encoder include order matters: `VideoEncoder/inc` before
   `VideoEncoder/source/*` (`Components/venc/README.md`).
@@ -62,7 +62,7 @@ boot loader expects (`docs/BOOT-CONTRACT.md`).
   linker's `_Min_Heap_Size` is only the least the link checks for; the heap
   grows from the end of `.bss` towards the stack. Starved, `BSP_VENC_Init`
   returns `BSP_ERROR_NO_INIT`, as it does for a geometry the encoder refuses.
-- **An MPU region for the band.** The boot loader maps nothing. The band is
+- **An MPU region for the band.** The bootloader maps nothing. The band is
   written by the camera and read by the encoder, never by the processor, so
   it must be non-cacheable; no maintenance call substitutes. `mpu_config` in
   `main.c` sets it from linker symbols. Get it wrong and nothing faults: the
@@ -151,6 +151,4 @@ too small for the mode.
   macroblock is 16 by 8, and an incomplete final row stalls it.
   `BSP_VENC_GetBandGeometry` floors the height and reports the coded height.
 
-Tested on a Neuro N6 with an OV5640: 54008 frames in fifteen minutes at
-60.0 fps with no malformed frame and no gap in the frame counter; all seven
-modes stream at the rates shown.
+All seven modes stream at the rates shown.

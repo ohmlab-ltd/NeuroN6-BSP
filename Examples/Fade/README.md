@@ -10,7 +10,7 @@ is active low, so the program inverts the duty.
 ## Build and run
 
 Import the projects under `STM32CubeIDE/` into STM32CubeIDE 2.2.0 and build
-`Debug`. Upload only `Appli`: `FSBL` is the boot loader the board already
+`Debug`. Upload only `Appli`: `FSBL` is the bootloader the board already
 runs. Or:
 
 ```bash

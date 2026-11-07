@@ -69,8 +69,8 @@ extern "C" {
 
 /**
   * @brief  PLL1 divider for the SDIO kernel clock; 7 gives 114.3 MHz from 800 MHz.
-  * @note   EMC: this and BSP_WIFI_SDIO_TRANSFER_DIV must stay odd, or bus harmonics land
-  *         on 200 MHz. Emissions passed at 7 and 7; retest them after any change.
+  * @note   This and BSP_WIFI_SDIO_TRANSFER_DIV must stay odd, or bus harmonics land
+  *         on 200 MHz.
   */
 #ifndef BSP_WIFI_SDIO_KERNEL_DIV
 #define BSP_WIFI_SDIO_KERNEL_DIV            7U
@@ -82,7 +82,7 @@ extern "C" {
 #endif
 
 /**
-  * @brief  Transfer clock divider: 7 gives 8.163 MHz, about 2.4 MB/s of Wi-Fi (EMC: see
+  * @brief  Transfer clock divider: 7 gives 8.163 MHz, about 2.4 MB/s of Wi-Fi (odd: see
   *         BSP_WIFI_SDIO_KERNEL_DIV).
   * @note   The clock is never gated: the card answers on a data line that is sampled only
   *         while the clock runs.
@@ -211,8 +211,10 @@ int32_t BSP_WIFI_DisableFunctionInterrupt(uint8_t Function);
   */
 int32_t BSP_WIFI_RearmCardInterrupt(void);
 
+#if defined(HAL_SDIO_MODULE_ENABLED)
 /** @brief SDIO handle for HAL calls not wrapped here; valid between Init and DeInit. */
 SDIO_HandleTypeDef *BSP_WIFI_GetHandle(void);
+#endif
 
 /** @brief Call from the application's SDMMC1_IRQHandler. */
 void BSP_WIFI_IRQHandler(void);

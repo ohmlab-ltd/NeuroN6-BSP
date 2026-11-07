@@ -55,8 +55,3 @@ is reported as not testable.
   gets nothing.
 - The Wi-Fi driver runs its timers, including the 802.11n receive-reorder
   flush, on the FreeRTOS timer task, which has a 2 KB stack for it.
-
-Tested on a board with the OV5640-W carrier and FSBL v2.6.1:
-`--phases ap,sta,stored,link,wpa3` passed 115 of 115. Not covered: a station
-rejoining after its network returns, and a join with a 100-character WPA3
-password (Windows will not store such a profile).

@@ -59,11 +59,10 @@ void HAL_SDIO_MspInit(SDIO_HandleTypeDef *hsdio)
     PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_SDMMC1;
     PeriphClkInitStruct.Sdmmc1ClockSelection = RCC_SDMMC1CLKSOURCE_IC4;
     PeriphClkInitStruct.ICSelection[RCC_IC4].ClockSelection = RCC_ICCLKSOURCE_PLL1;
-    /* EMC: do not change without a new radiated-emissions test. This divider
-     * and the CLKDIV in stm32n6_sdio_host.c must both be odd, so the total
-     * division of the 800 MHz PLL1 is not divisible by 4 and no SDMMC_CK
-     * harmonic lands on 200 MHz. IC4 = 7 with CLKDIV 7: N = 98, an 8.163 MHz
-     * pin clock, the configuration EMC-tested at 8 dBm. */
+    /* This divider and the CLKDIV in stm32n6_sdio_host.c must both be odd, so
+     * the total division of the 800 MHz PLL1 is not divisible by 4 and no
+     * SDMMC_CK harmonic lands on 200 MHz. IC4 = 7 with CLKDIV 7: N = 98, an
+     * 8.163 MHz pin clock. */
     PeriphClkInitStruct.ICSelection[RCC_IC4].ClockDivider   = 7;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
     {
@@ -81,7 +80,7 @@ void HAL_SDIO_MspInit(SDIO_HandleTypeDef *hsdio)
     GPIO_InitStruct.Pin       = GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_10 | GPIO_PIN_11 | GPIO_PIN_12;
     GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull      = GPIO_NOPULL;
-    /* EMC: HIGH, not VERY_HIGH, keeps the edges soft (PC8-12 and PH2). */
+    /* HIGH, not VERY_HIGH, keeps the edges soft (PC8-12 and PH2). */
     GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
     GPIO_InitStruct.Alternate = GPIO_AF10_SDMMC1;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);

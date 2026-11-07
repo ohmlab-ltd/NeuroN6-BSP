@@ -1,4 +1,4 @@
-/* Stand-in for the compiler's TrustZone header: the boot loader runs in the
+/* Stand-in for the compiler's TrustZone header: the bootloader runs in the
  * secure state, and the host build says so to get the same HAL declarations.
  *
  * Copyright (c) 2026 Ohm Lab Ltd.

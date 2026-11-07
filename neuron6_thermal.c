@@ -194,7 +194,7 @@ static int32_t Thermal_ConfigureSpi(void)
   uint32_t divider = 2U;
   uint32_t index = 0U;
 
-  /* Kernel clock = PCLK2: every other source taps the PLL the boot loader dedicates
+  /* Kernel clock = PCLK2: every other source taps the PLL the bootloader dedicates
    * to external memory, which must not be disturbed. */
   periph_clk_init.PeriphClockSelection = RCC_PERIPHCLK_SPI1;
   periph_clk_init.Spi1ClockSelection   = RCC_SPI1CLKSOURCE_PCLK2;

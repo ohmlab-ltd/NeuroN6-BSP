@@ -48,8 +48,9 @@ extern "C" {
 
 /**
   * @brief  Register this sensor; call before BSP_CAMERA_Init and BSP_CAMERA_ConfigPipe.
-  * @note   Set the lanes with BSP_CAMERA_SetCarrier before BSP_CAMERA_Init: STANDARD (the
-  *         default) for the NeuroVision carrier, INVERTED for the thermal carrier.
+  * @note   Set the lanes with BSP_CAMERA_SetCarrier before BSP_CAMERA_Init: INVERTED for
+  *         the NeuroVision ST cam carrier, which crosses the pair; STANDARD (the default)
+  *         for the thermal carrier.
   * @note   The driver starts the sensor only from power-up and no carrier has its reset
   *         line: if the board's reset does not reach it, Init fails until a power cycle.
   * @note   Build Components/vd6g/vd6g.c with NDEBUG: its reachable assertions hang.

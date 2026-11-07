@@ -28,8 +28,7 @@ __pycache__/
 .venv/
 
 # Bench run output: harness/n6test.py and the bench tools write reports, logs
-# and pictures into harness/board-tests/ on every run. Of that folder only
-# STATUS.md, the verification record, belongs to the repository.
+# and pictures into harness/board-tests/ on every run.
 harness/board-tests/*.txt
 harness/board-tests/*.log
 harness/board-tests/*.jpg

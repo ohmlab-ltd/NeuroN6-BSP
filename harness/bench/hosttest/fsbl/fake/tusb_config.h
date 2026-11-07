@@ -1,4 +1,4 @@
-/* Stand-in for the boot loader's TinyUSB configuration: one CDC interface.
+/* Stand-in for the bootloader's TinyUSB configuration: one CDC interface.
  *
  * Copyright (c) 2026 Ohm Lab Ltd.
  * SPDX-License-Identifier: MIT

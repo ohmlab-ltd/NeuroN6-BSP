@@ -76,7 +76,4 @@ sent to the bootloader; `b` on the console at any time (it stops the pipe and
 lets the encoder go idle first); and a return to the bootloader if no host has
 brought the device up within `UVC_HOST_TIMEOUT_MS`.
 
-Tested: the host sees `NeuroN6 Camera`; 1206 frames in 20 s, 60 encoded and
-sent a second with none torn; twenty fresh opens; seven forced
-resynchronisations a second for 18 s, recovered every time; every mode
-decoded.
+The host sees `NeuroN6 Camera` (Camera class).

@@ -35,13 +35,20 @@
 #define CAMERA_MIPI_ONE_LANE            0x24U
 #define CAMERA_MIPI_TWO_LANE_FROM       OV5640_R640x480
 
-/* DCMIPP kernel clock: PLL1 via IC17. CSI (IC18) is the D-PHY configuration clock and
- * must be near 27 MHz; CAMERA_ClockConfig re-derives its divider if it misses. */
-#define CAMERA_IC17_DIV_DCMIPP          2U
-#define CAMERA_IC18_DIV_CSI             30U
-#define CAMERA_CSI_KERNEL_TARGET_HZ     27000000U
-#define CAMERA_CSI_KERNEL_MIN_HZ        24000000U
-#define CAMERA_CSI_KERNEL_MAX_HZ        30000000U
+/* Camera kernel clocks, within RM0486's maximums (37.4.3):
+ * - pixel pipes (DCMIPP, IC17): 300 MHz from PLL3; 333 MHz max. Two lanes at 1600 Mbps
+ *   need at least 250 MHz (200 MHz overflows). PLL3 must run while the camera does.
+ * - D-PHY configuration (CSI, IC18): 20 MHz from PLL4, on the crystal; 20 MHz max. The
+ *   D-PHY calibrates its receiver against it.
+ * Each divider is computed from the PLL rate the bootloader set (v2.6.2: PLL3 900 MHz,
+ * PLL4 400 MHz), allowing 5% either way for a PLL on the HSI. A source that misses its
+ * window falls back to PLL1. */
+#define CAMERA_IC17_SOURCE              RCC_ICCLKSOURCE_PLL3
+#define CAMERA_PIXEL_MIN_HZ             250000000U
+#define CAMERA_PIXEL_MAX_HZ             333000000U
+#define CAMERA_IC18_SOURCE              RCC_ICCLKSOURCE_PLL4
+#define CAMERA_DPHY_CFG_MIN_HZ          17000000U
+#define CAMERA_DPHY_CFG_MAX_HZ          20000000U
 #define CAMERA_IC_DIV_MAX               256U
 
 /* Lowest D-PHY bucket in the range the stock HAL mis-calibrates. */
@@ -122,6 +129,12 @@ static int32_t Camera_ClockStatus = BSP_ERROR_NONE;
  * filter order without undoing the application's other settings. */
 static DCMIPP_RawBayer2RGBConfTypeDef Camera_Demosaic;
 static uint8_t                        Camera_DemosaicOn;
+
+/* BSP_CAMERA_SetIspStatisticsUnit: the area in pixels (shared by the three units), and
+ * per unit the pixels per sample of its component (0: unit not set). */
+#define CAMERA_STAT_UNITS 3U
+static uint32_t Camera_StatPixels;
+static uint32_t Camera_StatDivider[CAMERA_STAT_UNITS];
 
 #if defined(USE_HAL_DCMIPP_REGISTER_CALLBACKS) && (USE_HAL_DCMIPP_REGISTER_CALLBACKS == 1U)
 /* Set once MSP routines are on the handle, so Init never puts this module's over an
@@ -240,6 +253,9 @@ static int32_t  CAMERA_IO_GetTick(void);
 static const BSP_CAMERA_SensorMode_t *CAMERA_FindMode(uint32_t Resolution);
 static uint32_t CAMERA_PhyBucket(uint32_t LaneRateMbps);
 static void     CAMERA_RIFConfig(void);
+static uint32_t CAMERA_PllHz(uint32_t Source, uint32_t *FromCrystal);
+static int32_t  CAMERA_SetKernelClock(uint64_t Periph, uint32_t Ic, uint32_t Source,
+                                      uint32_t MinHz, uint32_t MaxHz);
 static void     CAMERA_ClockConfig(void);
 static int32_t  CAMERA_CsiConfig(uint32_t PhyBucket);
 static int32_t  CAMERA_ProbeSensor(uint32_t Resolution, uint32_t PixelFormat);
@@ -349,12 +365,28 @@ static uint32_t CAMERA_PhyBucket(uint32_t LaneRateMbps)
   {
     bucket = DCMIPP_CSI_PHY_BT_1350;
   }
-  else
+  else if (LaneRateMbps <= 1500U)
   {
     bucket = DCMIPP_CSI_PHY_BT_1500;
   }
+  else if (LaneRateMbps <= 2500U)
+  {
+    /* Above 1500 Mbps the buckets are 50 Mbps apart, one code each. */
+    bucket = DCMIPP_CSI_PHY_BT_1500 + ((LaneRateMbps - 1500U + 49U) / 50U);
+  }
+  else
+  {
+    bucket = DCMIPP_CSI_PHY_BT_2500;
+  }
 
   return bucket;
+}
+
+/* 1 for a raw Bayer sensor, which MAIN demosaics. */
+static uint32_t CAMERA_IsRawSensor(void)
+{
+  return ((Camera_Sensor->SensorFormat == BSP_CAMERA_PF_RAW8) ||
+          (Camera_Sensor->SensorFormat == BSP_CAMERA_PF_RAW10)) ? 1U : 0U;
 }
 
 /* Platform bring-up */
@@ -382,72 +414,98 @@ static void CAMERA_RIFConfig(void)
                                         RIF_ATTRIBUTE_SEC | RIF_ATTRIBUTE_PRIV);
 }
 
-/* Both kernel clocks come from PLL1, which is the FSBL's and must not be touched here. */
-static void CAMERA_ClockConfig(void)
+/* A PLL's output in Hz (0 when off), and whether it runs from the crystal. */
+static uint32_t CAMERA_PllHz(uint32_t Source, uint32_t *FromCrystal)
+{
+  uint32_t input;
+  uint32_t hz;
+
+  switch (Source)
+  {
+    case RCC_ICCLKSOURCE_PLL1:
+      input = LL_RCC_PLL1_GetSource();
+      hz    = HAL_RCCEx_GetPLL1CLKFreq();
+      break;
+    case RCC_ICCLKSOURCE_PLL2:
+      input = LL_RCC_PLL2_GetSource();
+      hz    = HAL_RCCEx_GetPLL2CLKFreq();
+      break;
+    case RCC_ICCLKSOURCE_PLL3:
+      input = LL_RCC_PLL3_GetSource();
+      hz    = HAL_RCCEx_GetPLL3CLKFreq();
+      break;
+    case RCC_ICCLKSOURCE_PLL4:
+      input = LL_RCC_PLL4_GetSource();
+      hz    = HAL_RCCEx_GetPLL4CLKFreq();
+      break;
+    default:
+      input = LL_RCC_PLLSOURCE_HSI;
+      hz    = 0U;
+      break;
+  }
+
+  *FromCrystal = (input == LL_RCC_PLLSOURCE_HSE) ? 1U : 0U;
+  return hz;
+}
+
+/* One camera kernel clock from Source, else PLL1: the smallest divider that keeps it in
+ * [MinHz, MaxHz], with 5% either way for a PLL on the HSI. The PLLs are the bootloader's. */
+static int32_t CAMERA_SetKernelClock(uint64_t Periph, uint32_t Ic, uint32_t Source,
+                                     uint32_t MinHz, uint32_t MaxHz)
 {
   RCC_PeriphCLKInitTypeDef periph = {0};
-  uint32_t csi_hz;
-  uint32_t pll1_hz;
-  uint32_t divider;
+  uint32_t                 crystal;
+  uint32_t                 pll;
+  uint32_t                 top;
+  uint32_t                 divider;
+  uint32_t                 hz;
+  uint32_t                 low;
+  uint32_t                 high;
 
-  Camera_ClockStatus = BSP_ERROR_NONE;
-
-  periph.PeriphClockSelection                    = RCC_PERIPHCLK_DCMIPP;
-  periph.DcmippClockSelection                    = RCC_DCMIPPCLKSOURCE_IC17;
-  periph.ICSelection[RCC_IC17].ClockSelection    = RCC_ICCLKSOURCE_PLL1;
-  periph.ICSelection[RCC_IC17].ClockDivider      = CAMERA_IC17_DIV_DCMIPP;
-  if (HAL_RCCEx_PeriphCLKConfig(&periph) != HAL_OK)
+  for (uint32_t attempt = 0U; attempt < 2U; attempt++)
   {
-    Camera_ClockStatus = BSP_ERROR_CLOCK_FAILURE;
-    return;
+    pll = CAMERA_PllHz(Source, &crystal);
+    if (pll != 0U)
+    {
+      top     = (crystal != 0U) ? MaxHz : ((MaxHz / 21U) * 20U);
+      divider = (pll + top - 1U) / top;
+      if (divider > CAMERA_IC_DIV_MAX)
+      {
+        divider = CAMERA_IC_DIV_MAX;
+      }
+
+      periph.PeriphClockSelection           = Periph;
+      periph.DcmippClockSelection           = RCC_DCMIPPCLKSOURCE_IC17;
+      periph.ICSelection[Ic].ClockSelection = Source;
+      periph.ICSelection[Ic].ClockDivider   = divider;
+      if (HAL_RCCEx_PeriphCLKConfig(&periph) != HAL_OK)
+      {
+        return BSP_ERROR_CLOCK_FAILURE;
+      }
+
+      hz   = HAL_RCCEx_GetPeriphCLKFreq(Periph);
+      low  = (crystal != 0U) ? hz : ((hz / 20U) * 19U);
+      high = (crystal != 0U) ? hz : ((hz / 20U) * 21U);
+      if ((low >= MinHz) && (high <= MaxHz))
+      {
+        return BSP_ERROR_NONE;
+      }
+    }
+    Source = RCC_ICCLKSOURCE_PLL1;
   }
 
-  periph.PeriphClockSelection                 = RCC_PERIPHCLK_CSI;
-  periph.ICSelection[RCC_IC18].ClockSelection = RCC_ICCLKSOURCE_PLL1;
-  periph.ICSelection[RCC_IC18].ClockDivider   = CAMERA_IC18_DIV_CSI;
-  if (HAL_RCCEx_PeriphCLKConfig(&periph) != HAL_OK)
+  /* No divider of this bootloader's PLLs reaches the window. */
+  return BSP_ERROR_FEATURE_NOT_SUPPORTED;
+}
+
+static void CAMERA_ClockConfig(void)
+{
+  Camera_ClockStatus = CAMERA_SetKernelClock(RCC_PERIPHCLK_DCMIPP, RCC_IC17, CAMERA_IC17_SOURCE,
+                                             CAMERA_PIXEL_MIN_HZ, CAMERA_PIXEL_MAX_HZ);
+  if (Camera_ClockStatus == BSP_ERROR_NONE)
   {
-    Camera_ClockStatus = BSP_ERROR_CLOCK_FAILURE;
-    return;
-  }
-
-  csi_hz = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_CSI);
-  if (csi_hz == 0U)
-  {
-    Camera_ClockStatus = BSP_ERROR_CLOCK_FAILURE;
-    return;
-  }
-
-  if ((csi_hz < CAMERA_CSI_KERNEL_MIN_HZ) || (csi_hz > CAMERA_CSI_KERNEL_MAX_HZ))
-  {
-    /* This FSBL's PLL1 rate does not suit the default divider: re-derive it. */
-    pll1_hz = csi_hz * CAMERA_IC18_DIV_CSI;
-    divider = (pll1_hz + (CAMERA_CSI_KERNEL_TARGET_HZ / 2U)) / CAMERA_CSI_KERNEL_TARGET_HZ;
-
-    if (divider < 1U)
-    {
-      divider = 1U;
-    }
-    if (divider > CAMERA_IC_DIV_MAX)
-    {
-      divider = CAMERA_IC_DIV_MAX;
-    }
-
-    periph.PeriphClockSelection                 = RCC_PERIPHCLK_CSI;
-    periph.ICSelection[RCC_IC18].ClockSelection = RCC_ICCLKSOURCE_PLL1;
-    periph.ICSelection[RCC_IC18].ClockDivider   = divider;
-    if (HAL_RCCEx_PeriphCLKConfig(&periph) != HAL_OK)
-    {
-      Camera_ClockStatus = BSP_ERROR_CLOCK_FAILURE;
-      return;
-    }
-
-    csi_hz = HAL_RCCEx_GetPeriphCLKFreq(RCC_PERIPHCLK_CSI);
-    if ((csi_hz < CAMERA_CSI_KERNEL_MIN_HZ) || (csi_hz > CAMERA_CSI_KERNEL_MAX_HZ))
-    {
-      /* No integer divider of this PLL1 reaches the D-PHY configuration clock window. */
-      Camera_ClockStatus = BSP_ERROR_FEATURE_NOT_SUPPORTED;
-    }
+    Camera_ClockStatus = CAMERA_SetKernelClock(RCC_PERIPHCLK_CSI, RCC_IC18, CAMERA_IC18_SOURCE,
+                                               CAMERA_DPHY_CFG_MIN_HZ, CAMERA_DPHY_CFG_MAX_HZ);
   }
 }
 
@@ -470,8 +528,10 @@ static int32_t CAMERA_CsiConfig(uint32_t PhyBucket)
 
   /* The D-PHY is not waited for: see BSP_CAMERA_Init for a bring-up with no frames. */
 
+  /* The receiver unpacks the link at the sensor's bit depth. */
   if (HAL_DCMIPP_CSI_SetVCConfig(&hcamera_dcmipp, DCMIPP_VIRTUAL_CHANNEL0,
-                                 DCMIPP_CSI_DT_BPP8) != HAL_OK)
+                                 (Camera_Sensor->CsiDataType == BSP_CAMERA_CSI_DT_RAW10)
+                                 ? DCMIPP_CSI_DT_BPP10 : DCMIPP_CSI_DT_BPP8) != HAL_OK)
   {
     return BSP_ERROR_PERIPH_FAILURE;
   }
@@ -897,6 +957,17 @@ static int32_t CAMERA_ConfigDump(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_
     bytes_per_pixel = 1U;
     packer          = DCMIPP_PIXEL_PACKER_FORMAT_MONO_Y8_G8_1;
   }
+  else if (Camera_Sensor->SensorFormat == BSP_CAMERA_PF_RAW10)
+  {
+    if (pConfig->PixelFormat != BSP_CAMERA_PIPE_PF_RAW10)
+    {
+      return BSP_ERROR_FEATURE_NOT_SUPPORTED;
+    }
+
+    /* Unpacked: one pixel per 16-bit word. */
+    bytes_per_pixel = 2U;
+    packer          = DCMIPP_PIXEL_PACKER_FORMAT_RGB565_1;
+  }
   else
   {
     if (pConfig->PixelFormat != BSP_CAMERA_PIPE_PF_RGB565)
@@ -942,12 +1013,150 @@ static int32_t CAMERA_ConfigDump(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_
   return BSP_ERROR_NONE;
 }
 
-/* MAIN: full-frame YUV from its colour conversion; the packer sets the memory layout. */
+/* Check the crop against the sensor frame; *pInW x *pInH is the size after it. */
+static int32_t CAMERA_CheckCrop(const BSP_CAMERA_PipeConfig_t *pConfig, uint32_t *pInW, uint32_t *pInH)
+{
+  const uint32_t sensor_w = Camera_Ctx[0].Width;
+  const uint32_t sensor_h = Camera_Ctx[0].Height;
+
+  if (pConfig->CropEnable == 0U)
+  {
+    *pInW = sensor_w;
+    *pInH = sensor_h;
+    return BSP_ERROR_NONE;
+  }
+
+  /* Compared without adding, so a large offset cannot wrap the sum. */
+  if ((pConfig->CropWidth == 0U) || (pConfig->CropHeight == 0U) ||
+      (pConfig->CropX > sensor_w) || (pConfig->CropWidth > (sensor_w - pConfig->CropX)) ||
+      (pConfig->CropY > sensor_h) || (pConfig->CropHeight > (sensor_h - pConfig->CropY)))
+  {
+    return BSP_ERROR_WRONG_PARAM;
+  }
+
+  *pInW = pConfig->CropWidth;
+  *pInH = pConfig->CropHeight;
+  return BSP_ERROR_NONE;
+}
+
+/* Program and enable the crop, or disable it. */
+static int32_t CAMERA_ApplyCrop(uint32_t Pipe, const BSP_CAMERA_PipeConfig_t *pConfig)
+{
+  DCMIPP_CropConfTypeDef crop = {0};
+
+  if (pConfig->CropEnable == 0U)
+  {
+    (void)HAL_DCMIPP_PIPE_DisableCrop(&hcamera_dcmipp, Pipe);
+    return BSP_ERROR_NONE;
+  }
+
+  crop.HStart   = pConfig->CropX;
+  crop.VStart   = pConfig->CropY;
+  crop.HSize    = pConfig->CropWidth;
+  crop.VSize    = pConfig->CropHeight;
+  crop.PipeArea = DCMIPP_POSITIVE_AREA;
+
+  if (HAL_DCMIPP_PIPE_SetCropConfig(&hcamera_dcmipp, Pipe, &crop) != HAL_OK)
+  {
+    return BSP_ERROR_PERIPH_FAILURE;
+  }
+  if (HAL_DCMIPP_PIPE_EnableCrop(&hcamera_dcmipp, Pipe) != HAL_OK)
+  {
+    return BSP_ERROR_PERIPH_FAILURE;
+  }
+
+  return BSP_ERROR_NONE;
+}
+
+/* Decimation, then downsize, from InW x InH to OutW x OutH; the caller has checked the
+ * output is no larger. */
+static int32_t CAMERA_ConfigScaler(uint32_t Pipe, uint32_t InW, uint32_t InH,
+                                   uint32_t OutW, uint32_t OutH)
+{
+  DCMIPP_DownsizeTypeDef downsize = {0};
+  uint32_t in_w = InW;
+  uint32_t in_h = InH;
+  uint32_t factor;
+
+  /* Smallest power-of-two decimation, after the crop, that brings both axes within the
+   * downsizer's ratio. */
+  factor = 1U;
+  while ((((in_w / factor) * 8192U) / OutW > CAMERA_DOWNSIZE_RATIO_MAX) ||
+         (((in_h / factor) * 8192U) / OutH > CAMERA_DOWNSIZE_RATIO_MAX))
+  {
+    factor <<= 1;
+    if (factor >= CAMERA_DECIMATION_MAX)
+    {
+      break;
+    }
+  }
+
+  if (factor > 1U)
+  {
+    DCMIPP_DecimationConfTypeDef dec = {0};
+
+    dec.HRatio = (factor >= 8U) ? DCMIPP_HDEC_1_OUT_8 :
+                 (factor == 4U) ? DCMIPP_HDEC_1_OUT_4 : DCMIPP_HDEC_1_OUT_2;
+    dec.VRatio = (factor >= 8U) ? DCMIPP_VDEC_1_OUT_8 :
+                 (factor == 4U) ? DCMIPP_VDEC_1_OUT_4 : DCMIPP_VDEC_1_OUT_2;
+
+    if (HAL_DCMIPP_PIPE_SetDecimationConfig(&hcamera_dcmipp, Pipe, &dec) != HAL_OK)
+    {
+      return BSP_ERROR_PERIPH_FAILURE;
+    }
+    if (HAL_DCMIPP_PIPE_EnableDecimation(&hcamera_dcmipp, Pipe) != HAL_OK)
+    {
+      return BSP_ERROR_PERIPH_FAILURE;
+    }
+
+    in_w /= factor;
+    in_h /= factor;
+  }
+  else
+  {
+    (void)HAL_DCMIPP_PIPE_DisableDecimation(&hcamera_dcmipp, Pipe);
+  }
+
+  downsize.HRatio     = (in_w * 8192U) / OutW;
+  downsize.VRatio     = (in_h * 8192U) / OutH;
+  downsize.HSize      = OutW;
+  downsize.VSize      = OutH;
+  downsize.HDivFactor = (OutW * 1023U) / in_w;
+  downsize.VDivFactor = (OutH * 1023U) / in_h;
+
+  if ((downsize.HRatio > CAMERA_DOWNSIZE_RATIO_MAX) ||
+      (downsize.VRatio > CAMERA_DOWNSIZE_RATIO_MAX) ||
+      (downsize.HDivFactor < CAMERA_DOWNSIZE_DIVFACTOR_MIN) ||
+      (downsize.VDivFactor < CAMERA_DOWNSIZE_DIVFACTOR_MIN) ||
+      (downsize.HDivFactor > CAMERA_DOWNSIZE_DIVFACTOR_MAX) ||
+      (downsize.VDivFactor > CAMERA_DOWNSIZE_DIVFACTOR_MAX))
+  {
+    /* Beyond the scaler even after the deepest decimation: lower the sensor resolution or
+     * raise the target size. */
+    return BSP_ERROR_FEATURE_NOT_SUPPORTED;
+  }
+
+  if (HAL_DCMIPP_PIPE_SetDownsizeConfig(&hcamera_dcmipp, Pipe, &downsize) != HAL_OK)
+  {
+    return BSP_ERROR_PERIPH_FAILURE;
+  }
+  if (HAL_DCMIPP_PIPE_EnableDownsize(&hcamera_dcmipp, Pipe) != HAL_OK)
+  {
+    return BSP_ERROR_PERIPH_FAILURE;
+  }
+
+  return BSP_ERROR_NONE;
+}
+
+/* MAIN: YUV from its colour conversion, optionally cropped and reduced; the packer sets
+ * the memory layout. */
 static int32_t CAMERA_ConfigMain(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_PipeCtx_t *pCtx)
 {
-  const uint32_t width  = Camera_Ctx[0].Width;
-  const uint32_t height = Camera_Ctx[0].Height;
+  const uint32_t width  = (pConfig->Width  != 0U) ? pConfig->Width  : Camera_Ctx[0].Width;
+  const uint32_t height = (pConfig->Height != 0U) ? pConfig->Height : Camera_Ctx[0].Height;
   DCMIPP_ColorConversionConfTypeDef rgb_to_yuv = {0};
+  uint32_t in_w;
+  uint32_t in_h;
   uint32_t packer;
   uint32_t pitch;
   uint32_t frame_bytes;
@@ -986,13 +1195,15 @@ static int32_t CAMERA_ConfigMain(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_
     return BSP_ERROR_WRONG_PARAM;
   }
 
-  if (((pConfig->Width != 0U) && (pConfig->Width != width)) ||
-      ((pConfig->Height != 0U) && (pConfig->Height != height)))
+  status = CAMERA_CheckCrop(pConfig, &in_w, &in_h);
+  if (status != BSP_ERROR_NONE)
   {
-    return BSP_ERROR_FEATURE_NOT_SUPPORTED;
+    return status;
   }
 
-  if (pConfig->CropEnable != 0U)
+  /* The scaler reduces only. */
+  if ((width > in_w) || (height > in_h) ||
+      (width > CAMERA_DOWNSIZE_SIZE_MAX) || (height > CAMERA_DOWNSIZE_SIZE_MAX))
   {
     return BSP_ERROR_FEATURE_NOT_SUPPORTED;
   }
@@ -1017,7 +1228,7 @@ static int32_t CAMERA_ConfigMain(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_
 
   /* A raw sensor is demosaiced first, in the descriptor's filter order;
    * BSP_CAMERA_SetIspDemosaicing corrects it once the driver knows its own. */
-  if (Camera_Sensor->SensorFormat == BSP_CAMERA_PF_RAW8)
+  if (CAMERA_IsRawSensor() != 0U)
   {
     DCMIPP_RawBayer2RGBConfTypeDef demosaic = {0};
 
@@ -1058,6 +1269,16 @@ static int32_t CAMERA_ConfigMain(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_
     return status;
   }
 
+  status = CAMERA_ApplyCrop(BSP_CAMERA_PIPE_MAIN, pConfig);
+  if ((status == BSP_ERROR_NONE) && ((width != in_w) || (height != in_h)))
+  {
+    status = CAMERA_ConfigScaler(BSP_CAMERA_PIPE_MAIN, in_w, in_h, width, height);
+  }
+  if (status != BSP_ERROR_NONE)
+  {
+    return status;
+  }
+
   rgb_to_yuv.ClampOutputSamples = DISABLE;
   rgb_to_yuv.OutputSamplesType  = DCMIPP_CLAMP_YUV;
   rgb_to_yuv.RR = 131;  rgb_to_yuv.RG = -110; rgb_to_yuv.RB = -21; rgb_to_yuv.RA = 128;
@@ -1092,8 +1313,6 @@ static int32_t CAMERA_ConfigAux(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_P
   uint32_t in_w;
   uint32_t in_h;
   uint32_t pitch;
-  uint32_t factor;
-  DCMIPP_DownsizeTypeDef downsize = {0};
   int32_t  status;
 
   if (pConfig->PixelFormat != BSP_CAMERA_PIPE_PF_RGB888)
@@ -1107,22 +1326,10 @@ static int32_t CAMERA_ConfigAux(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_P
     return BSP_ERROR_WRONG_PARAM;
   }
 
-  if (pConfig->CropEnable != 0U)
+  status = CAMERA_CheckCrop(pConfig, &in_w, &in_h);
+  if (status != BSP_ERROR_NONE)
   {
-    /* Compared without adding, so a large offset cannot wrap the sum. */
-    if ((pConfig->CropWidth == 0U) || (pConfig->CropHeight == 0U) ||
-        (pConfig->CropX > sensor_w) || (pConfig->CropWidth > (sensor_w - pConfig->CropX)) ||
-        (pConfig->CropY > sensor_h) || (pConfig->CropHeight > (sensor_h - pConfig->CropY)))
-    {
-      return BSP_ERROR_WRONG_PARAM;
-    }
-    in_w = pConfig->CropWidth;
-    in_h = pConfig->CropHeight;
-  }
-  else
-  {
-    in_w = sensor_w;
-    in_h = sensor_h;
+    return status;
   }
 
   /* The scaler reduces only. */
@@ -1178,97 +1385,14 @@ static int32_t CAMERA_ConfigAux(const BSP_CAMERA_PipeConfig_t *pConfig, CAMERA_P
     SET_BIT(DCMIPP->P2PPCR, DCMIPP_P2PPCR_SWAPRB);
   }
 
-  if (pConfig->CropEnable != 0U)
+  status = CAMERA_ApplyCrop(BSP_CAMERA_PIPE_AUX, pConfig);
+  if (status == BSP_ERROR_NONE)
   {
-    DCMIPP_CropConfTypeDef crop = {0};
-
-    crop.HStart   = pConfig->CropX;
-    crop.VStart   = pConfig->CropY;
-    crop.HSize    = pConfig->CropWidth;
-    crop.VSize    = pConfig->CropHeight;
-    crop.PipeArea = DCMIPP_POSITIVE_AREA;
-
-    if (HAL_DCMIPP_PIPE_SetCropConfig(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX, &crop) != HAL_OK)
-    {
-      return BSP_ERROR_PERIPH_FAILURE;
-    }
-    if (HAL_DCMIPP_PIPE_EnableCrop(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX) != HAL_OK)
-    {
-      return BSP_ERROR_PERIPH_FAILURE;
-    }
+    status = CAMERA_ConfigScaler(BSP_CAMERA_PIPE_AUX, in_w, in_h, out_w, out_h);
   }
-  else
+  if (status != BSP_ERROR_NONE)
   {
-    (void)HAL_DCMIPP_PIPE_DisableCrop(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX);
-  }
-
-  /* Smallest power-of-two decimation, after the crop, that brings both axes within the
-   * downsizer's ratio. */
-  factor = 1U;
-  while ((((in_w / factor) * 8192U) / out_w > CAMERA_DOWNSIZE_RATIO_MAX) ||
-         (((in_h / factor) * 8192U) / out_h > CAMERA_DOWNSIZE_RATIO_MAX))
-  {
-    factor <<= 1;
-    if (factor >= CAMERA_DECIMATION_MAX)
-    {
-      break;
-    }
-  }
-
-  if (factor > 1U)
-  {
-    DCMIPP_DecimationConfTypeDef dec = {0};
-
-    dec.HRatio = (factor >= 8U) ? DCMIPP_HDEC_1_OUT_8 :
-                 (factor == 4U) ? DCMIPP_HDEC_1_OUT_4 : DCMIPP_HDEC_1_OUT_2;
-    dec.VRatio = (factor >= 8U) ? DCMIPP_VDEC_1_OUT_8 :
-                 (factor == 4U) ? DCMIPP_VDEC_1_OUT_4 : DCMIPP_VDEC_1_OUT_2;
-
-    if (HAL_DCMIPP_PIPE_SetDecimationConfig(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX,
-                                            &dec) != HAL_OK)
-    {
-      return BSP_ERROR_PERIPH_FAILURE;
-    }
-    if (HAL_DCMIPP_PIPE_EnableDecimation(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX) != HAL_OK)
-    {
-      return BSP_ERROR_PERIPH_FAILURE;
-    }
-
-    in_w /= factor;
-    in_h /= factor;
-  }
-  else
-  {
-    (void)HAL_DCMIPP_PIPE_DisableDecimation(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX);
-  }
-
-  downsize.HRatio     = (in_w * 8192U) / out_w;
-  downsize.VRatio     = (in_h * 8192U) / out_h;
-  downsize.HSize      = out_w;
-  downsize.VSize      = out_h;
-  downsize.HDivFactor = (out_w * 1023U) / in_w;
-  downsize.VDivFactor = (out_h * 1023U) / in_h;
-
-  if ((downsize.HRatio > CAMERA_DOWNSIZE_RATIO_MAX) ||
-      (downsize.VRatio > CAMERA_DOWNSIZE_RATIO_MAX) ||
-      (downsize.HDivFactor < CAMERA_DOWNSIZE_DIVFACTOR_MIN) ||
-      (downsize.VDivFactor < CAMERA_DOWNSIZE_DIVFACTOR_MIN) ||
-      (downsize.HDivFactor > CAMERA_DOWNSIZE_DIVFACTOR_MAX) ||
-      (downsize.VDivFactor > CAMERA_DOWNSIZE_DIVFACTOR_MAX))
-  {
-    /* Beyond the scaler even after the deepest decimation: lower the sensor resolution or
-     * raise the target size. */
-    return BSP_ERROR_FEATURE_NOT_SUPPORTED;
-  }
-
-  if (HAL_DCMIPP_PIPE_SetDownsizeConfig(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX,
-                                        &downsize) != HAL_OK)
-  {
-    return BSP_ERROR_PERIPH_FAILURE;
-  }
-  if (HAL_DCMIPP_PIPE_EnableDownsize(&hcamera_dcmipp, BSP_CAMERA_PIPE_AUX) != HAL_OK)
-  {
-    return BSP_ERROR_PERIPH_FAILURE;
+    return status;
   }
 
   pCtx->PixelFormat = BSP_CAMERA_PIPE_PF_RGB888;
@@ -1458,7 +1582,8 @@ int32_t BSP_CAMERA_RegisterSensor(const BSP_CAMERA_Sensor_t *pSensor)
   }
 
   if ((pSensor->CsiDataType != BSP_CAMERA_CSI_DT_RGB565) &&
-      (pSensor->CsiDataType != BSP_CAMERA_CSI_DT_RAW8))
+      (pSensor->CsiDataType != BSP_CAMERA_CSI_DT_RAW8) &&
+      (pSensor->CsiDataType != BSP_CAMERA_CSI_DT_RAW10))
   {
     return BSP_ERROR_WRONG_PARAM;
   }
@@ -1682,6 +1807,11 @@ int32_t BSP_CAMERA_DeInit(uint32_t Instance)
 
   ctx->Initialised  = 0U;
   Camera_DemosaicOn = 0U;
+  Camera_StatPixels = 0U;
+  for (uint32_t unit = 0U; unit < CAMERA_STAT_UNITS; unit++)
+  {
+    Camera_StatDivider[unit] = 0U;
+  }
 
   return status;
 }
@@ -2530,7 +2660,7 @@ int32_t BSP_CAMERA_SetMirrorFlip(uint32_t Instance, uint32_t MirrorFlip)
   ctx->MirrorFlip = MirrorFlip;
 
   /* Mirroring changes a raw sensor's filter order: follow it, other settings kept. */
-  if ((Camera_Sensor->SensorFormat == BSP_CAMERA_PF_RAW8) && (Camera_DemosaicOn != 0U) &&
+  if ((CAMERA_IsRawSensor() != 0U) && (Camera_DemosaicOn != 0U) &&
       (Camera_Demosaic.RawBayerType != Camera_Sensor->BayerOrder))
   {
     Camera_Demosaic.RawBayerType = Camera_Sensor->BayerOrder;
@@ -3296,6 +3426,115 @@ int32_t BSP_CAMERA_SetIspGamma(uint32_t Instance, uint32_t Pipe, uint32_t Enable
                : HAL_DCMIPP_PIPE_DisableGammaConversion(&hcamera_dcmipp, Pipe);
 
   return (hal_status == HAL_OK) ? BSP_ERROR_NONE : BSP_ERROR_PERIPH_FAILURE;
+}
+
+int32_t BSP_CAMERA_SetIspStatisticsUnit(uint32_t Instance, uint32_t Pipe, uint32_t Unit, uint32_t Source)
+{
+  DCMIPP_StatisticExtractionAreaConfTypeDef area = {0};
+  DCMIPP_StatisticExtractionConfTypeDef     stat = {0};
+  uint32_t divider;
+  int32_t status = CAMERA_CheckIspPipe(Instance, Pipe, 0U);
+
+  if (status != BSP_ERROR_NONE)
+  {
+    return status;
+  }
+
+  if ((Unit < 1U) || (Unit > CAMERA_STAT_UNITS) ||
+      (Source > DCMIPP_STAT_EXT_SOURCE_POST_DEMOS_L) || ((Source & ~DCMIPP_P1ST1CR_SRC_Msk) != 0U))
+  {
+    return BSP_ERROR_WRONG_PARAM;
+  }
+
+  /* Before demosaicing, a raw frame carries red and blue on a quarter of its pixels and
+   * green on half. */
+  switch (Source)
+  {
+    case DCMIPP_STAT_EXT_SOURCE_PRE_BLKLVL_R:
+    case DCMIPP_STAT_EXT_SOURCE_PRE_BLKLVL_B:
+      divider = 4U;
+      break;
+    case DCMIPP_STAT_EXT_SOURCE_PRE_BLKLVL_G:
+      divider = 2U;
+      break;
+    default:
+      divider = 1U;
+      break;
+  }
+
+  area.HStart = 0U;
+  area.VStart = 0U;
+  area.HSize  = Camera_Ctx[Instance].Width;
+  area.VSize  = Camera_Ctx[Instance].Height;
+
+  stat.Mode   = DCMIPP_STAT_EXT_MODE_AVERAGE;
+  stat.Source = Source;
+  stat.Bins   = DCMIPP_STAT_EXT_AVER_MODE_ALL_PIXELS;
+
+  /* Units are DCMIPP_STATEXT_MODULE1 to 3, numbered alike. */
+  if ((HAL_DCMIPP_PIPE_SetISPAreaStatisticExtractionConfig(&hcamera_dcmipp, Pipe, &area) != HAL_OK) ||
+      (HAL_DCMIPP_PIPE_EnableISPAreaStatisticExtraction(&hcamera_dcmipp, Pipe) != HAL_OK) ||
+      (HAL_DCMIPP_PIPE_SetISPStatisticExtractionConfig(&hcamera_dcmipp, Pipe, Unit, &stat) != HAL_OK) ||
+      (HAL_DCMIPP_PIPE_EnableISPStatisticExtraction(&hcamera_dcmipp, Pipe, Unit) != HAL_OK))
+  {
+    Camera_StatDivider[Unit - 1U] = 0U;
+    return BSP_ERROR_PERIPH_FAILURE;
+  }
+
+  Camera_StatDivider[Unit - 1U] = divider;
+  Camera_StatPixels = area.HSize * area.VSize;
+  return BSP_ERROR_NONE;
+}
+
+int32_t BSP_CAMERA_GetIspStatisticsUnit(uint32_t Instance, uint32_t Pipe, uint32_t Unit, uint32_t *pAverage)
+{
+  uint32_t accumulated = 0U;
+  uint32_t samples;
+  int32_t  status = CAMERA_CheckIspPipe(Instance, Pipe, 0U);
+
+  if (status != BSP_ERROR_NONE)
+  {
+    return status;
+  }
+
+  if ((pAverage == NULL) || (Unit < 1U) || (Unit > CAMERA_STAT_UNITS))
+  {
+    return BSP_ERROR_WRONG_PARAM;
+  }
+
+  if (Camera_StatDivider[Unit - 1U] == 0U)
+  {
+    return BSP_ERROR_NO_INIT;
+  }
+  samples = Camera_StatPixels / Camera_StatDivider[Unit - 1U];
+  if (samples == 0U)
+  {
+    return BSP_ERROR_NO_INIT;
+  }
+
+  if (HAL_DCMIPP_PIPE_GetISPAccumulatedStatisticsCounter(&hcamera_dcmipp, Pipe, Unit, &accumulated) != HAL_OK)
+  {
+    return BSP_ERROR_PERIPH_FAILURE;
+  }
+
+  /* The accumulator holds the sum divided by 256. */
+  *pAverage = (uint32_t)((((uint64_t)accumulated * 256U) + (samples / 2U)) / samples);
+  if (*pAverage > 255U)
+  {
+    *pAverage = 255U;
+  }
+
+  return BSP_ERROR_NONE;
+}
+
+int32_t BSP_CAMERA_SetIspStatistics(uint32_t Instance, uint32_t Pipe, uint32_t Source)
+{
+  return BSP_CAMERA_SetIspStatisticsUnit(Instance, Pipe, 1U, Source);
+}
+
+int32_t BSP_CAMERA_GetIspStatistics(uint32_t Instance, uint32_t Pipe, uint32_t *pAverage)
+{
+  return BSP_CAMERA_GetIspStatisticsUnit(Instance, Pipe, 1U, pAverage);
 }
 
 /* Weak application callbacks */

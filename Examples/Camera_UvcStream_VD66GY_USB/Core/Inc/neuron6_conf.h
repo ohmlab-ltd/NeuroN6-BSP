@@ -1,11 +1,7 @@
 /**
   ******************************************************************************
-  * @file    neuron6_conf_template.h
-  * @brief   Neuro N6 BSP configuration template.
-  *
-  *          Copy this file into your application as `neuron6_conf.h` and edit
-  *          it there: every BSP header includes "neuron6_conf.h". The template
-  *          itself is never included.
+  * @file    neuron6_conf.h
+  * @brief   The example's BSP configuration, from neuron6_conf_template.h.
   ******************************************************************************
   * @attention
   *
@@ -108,8 +104,8 @@
 /* Camera carrier */
 
 /* Which carrier the image sensor sits on, and so how its data pair is wired:
- * the display carrier crosses it. A wrong setting gives no error, only no
- * frames. An application for both carriers calls BSP_CAMERA_SetCarrier. */
+ * the display and ST cam carriers cross it. A wrong setting gives no error,
+ * only no frames. Code for several carriers calls BSP_CAMERA_SetCarrier. */
 /* #define BSP_CAMERA_DEFAULT_CARRIER   BSP_CAMERA_CARRIER_INVERTED */
 
 /* Motion sensor: the output rates (Hz) and full scales (g, dps) that
@@ -126,9 +122,8 @@
 /* #define BSP_WIFI_FIRMWARE_BASE       0x91E00000U */
 
 /* SDIO dividers for the radio: enumeration at 446 kHz (the card specification
- * asks for 400 kHz) and transfers at 8.163 MHz, the clock the radio passed
- * radiated emissions with. The transfer divider must stay odd (see
- * neuron6_wifi.h): do not change it without testing emissions again. */
+ * asks for 400 kHz) and transfers at 8.163 MHz. The transfer divider must stay
+ * odd (see neuron6_wifi.h). */
 /* #define BSP_WIFI_SDIO_INIT_DIV       0x80U */
 /* #define BSP_WIFI_SDIO_TRANSFER_DIV   0x07U */
 

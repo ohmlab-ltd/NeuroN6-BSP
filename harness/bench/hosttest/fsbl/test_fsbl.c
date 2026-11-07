@@ -1,4 +1,4 @@
-/* The boot loader's source, FSBL/Core/Src/main.c, run on a simulated board.
+/* The bootloader's source, FSBL/Core/Src/main.c, run on a simulated board.
  *
  * Each test sets a board up, runs the loader through one or more boots, and
  * says what must be true afterwards. See README.md for what the simulation
@@ -63,7 +63,7 @@ static uint8_t *make_app(int which, uint32_t size, uint32_t seed)
   return img;
 }
 
-/* A boot loader image: the same header, a reset vector in the loader's RAM. */
+/* A bootloader image: the same header, a reset vector in the loader's RAM. */
 static uint8_t *make_fsbl(int which, uint32_t size, uint32_t seed)
 {
   uint8_t *img = make_app(which, size, seed);
@@ -772,7 +772,7 @@ static void t_f4_garbage(void)
     { 0x34200000u, 0x340003FFu },        /* below the image's vectors */
     { 0x34200000u, 0x34180001u },        /* past the window the slot is copied to */
     { 0x34200000u, 0x91C80401u },        /* in the other slot's flash */
-    { 0x34200000u, 0x90000401u },        /* in the boot loader's flash */
+    { 0x34200000u, 0x90000401u },        /* in the bootloader's flash */
     { 0x34200000u, 0xFFFFFFFFu },
   };
 
@@ -857,7 +857,7 @@ static void t_f4_stage(void)
   uint8_t *img = make_fsbl(2, 84000u, 3u);
 
   board_ab(200000u, 0u);
-  app_stage_image(img, 84000u, 9u);                    /* a boot loader image, staged as an update */
+  app_stage_image(img, 84000u, 9u);                    /* a bootloader image, staged as an update */
   sim_ops_clear();
   CHECK(sim_boot() == SIM_END_APP && sim->boot_offset == SLOT_A);
   CHECK(*sim_bkp(N6_OTA_APPLY_BKPR) == N6_OTA_APPLY_ERR_NOT_APP);
@@ -884,7 +884,7 @@ static void t_f4_bad_upload(void)
   CHECK(cb_read(&cb) >= 0 && cb.active == 1u);         /* and the block names the slot that runs */
 }
 
-/* F5: the boot loader's own flash is not written without being asked. */
+/* F5: the bootloader's own flash is not written without being asked. */
 static void t_f5_locked(void)
 {
   uint8_t *old = make_fsbl(1, 84000u, 5u), *img = make_fsbl(0, 84000u, 6u);
@@ -996,7 +996,7 @@ static void t_f5_whole_megabyte(void)
   CHECK(flash_blank(0x15000u, SLOT_A - 0x15000u) && strstr(sim->d2h, "ERASE_") == NULL);
 }
 
-/* F5 and F11: the erase of the boot loader's flash, made late, asks the
+/* F5 and F11: the erase of the bootloader's flash, made late, asks the
  * flash its mode like any other. */
 static void t_f5_mode_missed(void)
 {
@@ -1011,7 +1011,7 @@ static void t_f5_mode_missed(void)
   CHECK(flash_is(0u, img, 83744u) && sim_reply_has("NEXT_OK") && sim->prog_dirty == 0u);
 }
 
-/* F5: unlocked, the boot loader's flash is still written only from its start. */
+/* F5: unlocked, the bootloader's flash is still written only from its start. */
 static void t_f5_address(void)
 {
   uint8_t *old = make_fsbl(1, 84000u, 5u);

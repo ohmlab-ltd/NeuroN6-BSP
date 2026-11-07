@@ -15,4 +15,4 @@ them. Background: `docs/HAL-PATCHES.md`.
 
 STMicroelectronics' software, under BSD-3-Clause (`LICENSE.txt`). Ohm Lab
 Ltd's changes are under the same terms, as `ohmlab_readme.txt` states. That
-file also records a DCMIPP fix, which this folder does not carry.
+file also records the two DCMIPP fixes, which this folder does not carry.

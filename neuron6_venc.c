@@ -212,7 +212,8 @@ int32_t BSP_VENC_GetBandGeometry(uint32_t Width, uint32_t Height, BSP_VENC_Band_
   /* These two cases need the deeper band whatever the budget. */
   sensor = BSP_CAMERA_GetSensor();
   if (((mb_width & 1U) != 0U) ||
-      ((sensor != NULL) && (sensor->SensorFormat == BSP_CAMERA_PF_RAW8) && (Height > 1024U)))
+      ((sensor != NULL) && ((sensor->SensorFormat == BSP_CAMERA_PF_RAW8) ||
+                            (sensor->SensorFormat == BSP_CAMERA_PF_RAW10)) && (Height > 1024U)))
   {
     depth = 4U;
   }

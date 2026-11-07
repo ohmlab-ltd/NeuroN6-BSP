@@ -9,26 +9,23 @@ STM32CubeIDE.
 The repository holds:
 
 - **The BSP:** one module per part of the board ([Modules](#modules)).
-- **35 examples**, each its own CubeIDE project: 17 that show one thing each,
+- **37 examples**, each its own CubeIDE project: 17 that show one thing each,
   plus camera, thermal, neural-network, Wi-Fi, TLS and BLE examples
   ([Examples/README.md](Examples/README.md)).
 - **The middleware they use**, each under its own terms: FreeRTOS, TinyUSB,
-  lwIP and NXP's Wi-Fi driver, Apache NimBLE, Mbed TLS, ST's NPU runtime.
-- **The first-stage boot loader's source** (v2.6.2) and the **host tools**
+  lwIP and NXP's Wi-Fi driver, Apache NimBLE, Mbed TLS, FatFs, ST's NPU runtime.
+- **The first-stage bootloader's source** (v2.6.2) and the **host tools**
   that build, upload and test from the command line
   ([harness/README.md](harness/README.md)).
 
-Hardware-validated on a Neuro N6: every module builds clean under
-`-Wall -Wextra -Werror`, and `Examples/BSPTest` passes its sweep on the board,
-bare metal and under FreeRTOS. [harness/board-tests/STATUS.md](harness/board-tests/STATUS.md)
-has the detail.
+Every module builds clean under `-Wall -Wextra -Werror`.
 
 ## Requirements
 
 - **STM32CubeIDE 2.2.0** (GNU Tools for STM32 14.3.rel1). Other versions are
   untested. Each build runs ST's signing tool with no key to make the
-  `_Trusted.bin` the boot loader accepts: a header, not a signature.
-- **A Neuro N6 with boot loader v2.5.0 or later.** Older ones (v2.0.2 to v2.4.0)
+  `_Trusted.bin` the bootloader accepts: a header, not a signature.
+- **A Neuro N6 with bootloader v2.5.0 or later.** Older ones (v2.0.2 to v2.4.0)
   read the external flash with errors, which breaks the radio and the NPU
   silently. `python harness/n6fsbl.py` reports the version. Boards ship with
   v2.6.2: `FSBL/Neuro-N6-FSBL-v2.6.2-Trusted.bin`, installed as
@@ -43,7 +40,7 @@ has the detail.
 
 ## The boot contract
 
-The factory boot loader owns the clock tree and both external memories. **The
+The factory bootloader owns the clock tree and both external memories. **The
 BSP never configures clocks, XSPI or PSRAM**, never calls `SystemClock_Config`,
 and reads clock frequencies back at run time. [docs/BOOT-CONTRACT.md](docs/BOOT-CONTRACT.md)
 defines the memory map, the image-size limit and the image header.
@@ -57,7 +54,7 @@ VFBGA264. Some peripherals have no pin here, and PD3 is shared:
 | Module | Covers | Notes |
 |---|---|---|
 | `neuron6` | LEDs, USER button, board identity | Common-anode LEDs; button on PG8 |
-| `neuron6_com` | USB CDC console | No debug UART. Retargets `printf`; the 1200-baud touch enters the boot loader |
+| `neuron6_com` | USB CDC console | No debug UART. Retargets `printf`; the 1200-baud touch enters the bootloader |
 | `neuron6_wdg` | Independent watchdog | Millisecond API, early-warning callback |
 | `neuron6_npu` | NPU RAM, cache, interrupts, isolation | The runtime is ST Edge AI's (SLA0044), in `Middlewares/ST/AI_Runtime` |
 | `neuron6_bus` | I2C1 (sensors), I2C2 and SPI2 (header) | Weak lock hooks for RTOS use |
@@ -66,13 +63,18 @@ VFBGA264. Some peripherals have no pin here, and PD3 is shared:
 | `neuron6_pwm` | PWM and tone | Timer clocks measured, never assumed |
 | `neuron6_motion_sensor` | LSM6DSL, MMC5603NJ | ST motion-sensor API |
 | `neuron6_ranging_sensor` | VL53L1CB time of flight | ST ranging API; single ranging, ROI, 16-zone grid |
+| `neuron6_ranging_vl53l5cx` | VL53L5CX time of flight on ST's B-CAMS-IMX module | ST's ultra lite driver; 4 x 4 zones at up to 60 Hz, 8 x 8 at up to 15 Hz; its firmware loads at each start, about 3 s |
 | `neuron6_thermal` | FLIR Lepton 3.1R | 160x120 radiometric video on SPI1 |
 | `neuron6_camera` | OV5640 over CSI-2, three DCMIPP pipes | Continuous and snapshot; any sensor through `BSP_CAMERA_RegisterSensor` |
 | `neuron6_camera_vd65g4`, `_vd66gy` | Global-shutter sensors | Registered through the camera module |
+| `neuron6_camera_imx335` | Sony IMX335 on ST's B-CAMS-IMX module | 5 MP RAW10 at 1600 Mbps a lane; exposure from `neuron6_camera_ae` |
+| `neuron6_camera_ae` | Auto-exposure for raw sensors | Metered from the pipe's statistics; host-tested |
+| `neuron6_camera_awb` | Auto white balance for raw sensors | Grey world held to a line of measured lights; host-tested |
+| `neuron6_sd` | SD card on SDMMC1, in the B-CAMS-IMX adapter's slot | Shares the radio's bus; high-speed mode at 33.3 MHz; polled, no interrupt handler |
 | `neuron6_venc` | Hardware JPEG encoder | Fed from the camera through the DCMIPP line buffer; every sensor mode at full rate |
 | `neuron6_lcd` | 800x480 RGB565 panel on LTDC | Two layers, buffer flips, drawing primitives |
 | `neuron6_audio` | MAX98357A speaker, PDM microphone | Rates accepted only within 1%; no volume control (no codec) |
-| `neuron6_wifi` | MAYA-W476 power and SDIO | 8.163 MHz bus, the EMC-tested clock |
+| `neuron6_wifi` | MAYA-W476 power and SDIO | 8.163 MHz bus |
 | `neuron6_bt` | BLE HCI over USART6 | No command can set BLE transmit power above 8 dBm |
 | `neuron6_rtos` | FreeRTOS glue | Only with `BSP_USE_FREERTOS` |
 
@@ -80,15 +82,16 @@ Libraries and support:
 
 | Path | What |
 |---|---|
-| `Components/` | Sensor drivers: OV5640, VD66GY and VD55G1 (ST, BSD-3-Clause), the VC8000NanoE JPEG encoder, and Ohm Lab drivers for the LSM6DSL, MMC5603NJ, Lepton and VL53L1CB |
+| `Components/` | Sensor drivers: OV5640, VD66GY, VD55G1 and IMX335 (ST, BSD-3-Clause), the VC8000NanoE JPEG encoder, and Ohm Lab drivers for the LSM6DSL, MMC5603NJ, Lepton and VL53L1CB |
+| `Middlewares/FatFs/`, `Middlewares/NeuroN6/FatFsSd/` | ChaN's FatFs R0.16 (FAT and exFAT), on `neuron6_sd` |
 | `Middlewares/NeuroN6/MayaW476/` | Wi-Fi library: access point or station, WPA2/WPA3 only, video over TCP on the board's own access point, 2.4 GHz only at 8 dBm |
 | `Middlewares/NeuroN6/BleHost/` | Apache NimBLE on `neuron6_bt` (FreeRTOS only) |
 | `Middlewares/NeuroN6/Tls/` | TLS 1.2/1.3 over Wi-Fi with Mbed TLS and NXP's HTTPS server (FreeRTOS only) |
 | `Middlewares/NeuroN6/PostProcess/`, `Models/` | The five networks and their post-processing |
-| `Middlewares/NeuroN6/N6OTA/` | Settings a host stores on the board, written by the boot loader |
-| `Drivers/` | STM32N6 HAL and CMSIS, with two fixes ([docs/HAL-PATCHES.md](docs/HAL-PATCHES.md)) |
-| `Utilities/` | USB, FreeRTOS and NPU memory configuration; the patched SDIO driver |
-| `FSBL/` | The v2.6.2 boot loader's source and its published image |
+| `Middlewares/NeuroN6/N6OTA/` | Settings a host stores on the board, written by the bootloader |
+| `Drivers/` | STM32N6 HAL and CMSIS, with three fixes ([docs/HAL-PATCHES.md](docs/HAL-PATCHES.md)) |
+| `Utilities/` | USB, FreeRTOS and NPU memory configuration; the patched SDIO driver; the STM32CubeProgrammer flash loader (`Utilities/ExternalLoader/`) |
+| `FSBL/` | The v2.6.2 bootloader's source and its published image |
 | `harness/` | Compile gate, uploader and bench tools (not shipped API) |
 
 ## Using the BSP in a CubeIDE project
@@ -98,7 +101,7 @@ Libraries and support:
 3. Enable the HAL modules you need in `stm32n6xx_hal_conf.h`. `harness/stm32n6xx_hal_conf.h` enables them all.
 4. Reserve a non-cacheable region and point `BSP_THERMAL_DMA_NODE_SECTION` at it.
 5. Call the BSP's interrupt handlers from `stm32n6xx_it.c`. Each header names its vector.
-6. Use this repository's `Drivers/`, or apply [docs/HAL-PATCHES.md](docs/HAL-PATCHES.md). The camera's larger modes and the radio need those fixes, and CubeMX regeneration reverts them.
+6. Use this repository's `Drivers/`, or apply [docs/HAL-PATCHES.md](docs/HAL-PATCHES.md). The camera's larger modes, single-lane sensors wired to lane 1, and the radio need those fixes, and CubeMX regeneration reverts them.
 7. `HAL_<PPP>_MspInit` hooks are yours, except `HAL_DCMIPP_MspInit` and `HAL_PCD_MspInit`. Override those through the `BSP_*_RegisterMspCallbacks` functions.
 8. Memory isolation is handled by `BSP_ISOLATION_Config`. If your application owns it, set `BSP_ISOLATION_APPLICATION_OWNED` and admit every bus master the BSP drives.
 
@@ -121,33 +124,83 @@ The OV5640 is the default sensor. Register a global-shutter sensor before
 
 ```c
 BSP_CAMERA_VD66GY_Register();
-BSP_CAMERA_SetCarrier(BSP_CAMERA_CARRIER_INVERTED);   /* thermal carrier only */
+BSP_CAMERA_SetCarrier(BSP_CAMERA_CARRIER_INVERTED);   /* ST cam carrier; STANDARD on the thermal carrier */
 BSP_CAMERA_Init(0, BSP_CAMERA_VD66GY_R1024x768, BSP_CAMERA_PF_RAW8);
 ```
 
 ```c
 BSP_CAMERA_VD65G4_Register();
-BSP_CAMERA_Init(0, BSP_CAMERA_VD65G4_R804x704, BSP_CAMERA_PF_RAW8);
+BSP_CAMERA_SetCarrier(BSP_CAMERA_CARRIER_INVERTED);   /* ST cam carrier (HAL fix 3); STANDARD on the thermal carrier */
+BSP_CAMERA_Init(0, BSP_CAMERA_VD65G4_R640x480, BSP_CAMERA_PF_RAW8);
 ```
 
 - A raw sensor is reconstructed on the main pipe (YUV422); the auxiliary pipe
   follows it (RGB888); the dump pipe carries raw data.
 - The VD65G4 needs a carrier pull-up on XSHUTDOWN below about 9 kOhm, or it
   stays in shutdown. Its constants are in `neuron6_conf.h`.
-- The VD66GY needs the D-PHY fix in every mode, and leaves white balance and
-  colour to `BSP_CAMERA_SetIsp*`. It starts only from power-up or a board reset.
-- `BSP_CAMERA_SetCarrier` sets the receiver's lane mapping for the carrier;
-  a wrong setting gives no frames.
+- The VD66GY, VD65G4 and IMX335 links run above 768 Mbps, so every mode
+  needs the D-PHY fix (`docs/HAL-PATCHES.md`). The VD66GY leaves white balance
+  and colour to `BSP_CAMERA_SetIsp*`, and starts only from power-up or a board
+  reset.
+- The camera's kernel clocks stay within RM0486's maximums, even with the HSI
+  5% fast: the D-PHY configuration clock at 20 MHz from the crystal (PLL4), the
+  pixel pipes at 300 MHz (PLL3).
+- `BSP_CAMERA_SetCarrier` sets the receiver's lane mapping for the carrier:
+  `INVERTED` on the NeuroVision ST cam carrier, which crosses the pair, and
+  `STANDARD` on the thermal carrier, for both sensors. A wrong setting gives
+  no frames.
 - `neuron6_camera_vd66gy.c` shows how to add another sensor.
+
+Ohm Lab's B-CAMS-IMX adapter has a flex connector for ST's B-CAMS-IMX camera
+module and an SD card slot. The module's IMX335 has one 2592 x 1944 mode; the
+main pipe crops and reduces it:
+
+```c
+BSP_CAMERA_IMX335_Register();                        /* EN_MODULE and XCLR, as neuron6_conf.h defines them */
+BSP_CAMERA_SetCarrier(BSP_CAMERA_CARRIER_STANDARD);  /* the B-CAMS-IMX adapter wires the lanes straight */
+BSP_CAMERA_IMX335_SetTiming(21, 142);                /* fps, line length in percent: full size */
+BSP_CAMERA_Init(0, BSP_CAMERA_IMX335_R2592x1944, BSP_CAMERA_PF_RAW10);
+```
+
+- It has no exposure loop: call `BSP_CAMERA_IMX335_AutoExposure` once a
+  frame with `BSP_CAMERA_GetIspStatistics`'s average.
+- Longer lines slow the rows so the encoder keeps up at full width: 21 fps
+  with 142% lines is the fastest 2592 x 1944 stream. Up to 1920 wide, ST's
+  timing (30 fps, 100%) keeps up.
+
+The module's VL53L5CX ranges 4 x 4 or 8 x 8 zones, up to 4 m:
+
+```c
+BSP_RANGING_VL53L5CX_Result_t result;
+
+BSP_RANGING_VL53L5CX_Init();                                     /* LPn and INT, as neuron6_conf.h defines them */
+BSP_RANGING_VL53L5CX_Start(BSP_RANGING_VL53L5CX_ZONES_8X8, 15);  /* zones, results a second */
+if (BSP_RANGING_VL53L5CX_GetResult(&result) == BSP_ERROR_NONE)   /* a new result */
+{
+  /* result.Distance[zone]: mm, 0 where the zone has no valid range */
+}
+```
+
+- `Init` loads the part's firmware: about 3 s on the sensor bus, calling
+  `BSP_RANGING_VL53L5CX_WaitHook` throughout.
+- The adapter brings TOF_INT to PA11. It pulses low for about 100 us per
+  result, and its EXTI line holds the pulse, so `GetResult` touches the bus
+  only once a result has landed.
+- A read takes 11 ms at 8 x 8 zones and 4.5 ms at 4 x 4. The IMX335 examples
+  read inside an encode, early in the frame, so the read ends before the frame
+  does.
 
 ## Known limits
 
-- The VD65G4 has run 640x480 at 60 fps; its other three modes have not run.
+- `neuron6_camera_imx335` drives EN_MODULE and XCLR only where `neuron6_conf.h` names their pins (the IMX335 examples name the adapter's PA7 and PB11). Without them the sensor keeps its registers across board resets.
+- The B-CAMS-IMX module's IMU answers at the board's own IMU address (0xD4): with it fitted, the board's motion readings are unreliable, and the module's IMU needs an address change in hardware.
+- The VL53L5CX's zones are in the order ST's driver gives them.
+- The SD card and the radio share SDMMC1: one at a time.
 - A camera bring-up occasionally ends with no frame; the remedy is documented on `BSP_CAMERA_Init`.
 - The radio firmware must be in external flash at `0x91E00000`
   (`harness/n6weights.py --write`). `BSP_WIFI_IsFirmwarePresent` checks it.
 - PD3 is both the thermal camera's power line and the BLE link's flow control ([docs/PART-VARIANT.md](docs/PART-VARIANT.md)).
-- No Ethernet, no H.264, no DMA2D in the LCD fills, and no clock or flash module (the boot loader owns those).
+- No Ethernet, no H.264, no DMA2D in the LCD fills, and no clock or flash module (the bootloader owns those).
 - Standby: nothing here enters it. An application that does must point
   `SYSCFG->INITSVTORCR` at a vector table that survives Standby.
 

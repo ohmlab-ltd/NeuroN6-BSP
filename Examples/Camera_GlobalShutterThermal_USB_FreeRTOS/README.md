@@ -68,7 +68,7 @@ At the top of `main.c`:
 | setting | as shipped | meaning |
 |---|---|---|
 | `CAM_RESOLUTION`, `CAM_FRAME_RATE` | VGA, 60 | the VD66GY's mode (up to 88 fps); the sensor is held to this rate |
-| `CAM_CARRIER` | `BSP_CAMERA_CARRIER_INVERTED` | the thermal carrier crosses the camera's two data lanes. A wrong setting gives no error: the sensor streams and no frame arrives |
+| `CAM_CARRIER` | `CAM_CARRIER_THERMAL` | the carrier: the thermal carrier wires the camera's two data lanes straight; `CAM_CARRIER_ST_CAM` (the NeuroVision ST cam carrier, which crosses them) runs the camera, with the Lepton retried as absent. A wrong setting gives no error: the sensor streams and no frame arrives |
 | `CAM_EXPOSURE_TARGET` | 25 | the sensor's exposure target, 0 to 100. It meters the raw picture, before white balance and gamma brighten it, so a middle target overexposes |
 | `THERMAL_RESTART_MS` | 20 s | no thermal frame for this long, despite the thermal module's own restarts: the Lepton is power-cycled |
 | `THERMAL_RETRY_MS` | 30 s | how often a Lepton that did not start is retried; the readings pause meanwhile |
@@ -94,13 +94,13 @@ bash harness/examples/cubebuild.sh Camera_GlobalShutterThermal_USB_FreeRTOS
 ```
 
 `Appli` is the JPEG stream's FreeRTOS project with the VD66GY, thermal and
-motion-sensor modules linked in; `FSBL` is the boot loader. `neuron6_conf.h`
+motion-sensor modules linked in; `FSBL` is the bootloader. `neuron6_conf.h`
 sets `BSP_USE_FREERTOS`.
 
-## Status
+## Behaviour
 
-Tested on a board with the thermal carrier for five minutes: 60.0 fps JPEG
-and 8.7 thermal frames a second, with no gap in the frame ids. After a forced
-thermal stall, thermal frames return 2.8 s after the power cycle while the
-JPEGs continue. A reader that joins after another stopped part way through a
-frame skips the rest of that frame first.
+JPEG at 60 fps and 8.7 thermal frames a second. After a thermal stall the
+thermal camera is power-cycled, and its frames return about 3 s later while
+the JPEGs continue. A reader that joins after another stopped part way
+through a frame skips the rest of that frame first. With `CAM_CARRIER_ST_CAM`,
+the camera runs at 60 fps on the ST cam carrier.

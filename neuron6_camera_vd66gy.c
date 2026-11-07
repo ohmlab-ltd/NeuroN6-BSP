@@ -311,12 +311,13 @@ static int32_t Vd66gy_DrvInit(void *pObj, uint32_t Resolution, uint32_t PixelFor
   config.flicker              = VD6G_FLICKER_FREE_50HZ;
   config.pixel_depth          = VD6G_COLOR_DEPTH_RAW8;
 
-  /* The lane swap is done on the sensor, not in the receiver. */
+  /* No lane swap on the sensor: the receiver follows the carrier's wiring
+   * (BSP_CAMERA_SetCarrier), as for every other sensor. */
   config.out_itf.datalane_nb                    = 2;
   config.out_itf.clock_lane_swap_enable         = 0;
   config.out_itf.data_lane0_swap_enable         = 0;
   config.out_itf.data_lane1_swap_enable         = 0;
-  config.out_itf.data_lanes_mapping_swap_enable = 1;
+  config.out_itf.data_lanes_mapping_swap_enable = 0;
 
   /* The sensor's own pins are left as inputs. */
   for (index = 0U; index < (uint32_t)VD6G_GPIO_NB; index++)

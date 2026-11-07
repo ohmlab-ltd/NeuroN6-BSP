@@ -1,4 +1,4 @@
-/* Stand-in for TinyUSB: the five calls the boot loader makes, answered by
+/* Stand-in for TinyUSB: the five calls the bootloader makes, answered by
  * the simulated board (fsbl_sim.c) from a byte stream a test supplies.
  *
  * Copyright (c) 2026 Ohm Lab Ltd.
